@@ -260,6 +260,12 @@ class Limatco_Chat_Api {
 		);
 
 		if ( is_wp_error( $response ) ) {
+			// SOLO PARA DEBUG: agrega define('LAC_DEBUG', true); en
+			// wp-config.php para ver el motivo real en el error_log. No queda
+			// prendido en producción a menos que definas esa constante.
+			if ( defined( 'LAC_DEBUG' ) && LAC_DEBUG ) {
+				error_log( '[Limatco Chat] Falla de red/timeout: ' . $response->get_error_code() . ' - ' . $response->get_error_message() );
+			}
 			return $response;
 		}
 
@@ -268,6 +274,9 @@ class Limatco_Chat_Api {
 
 		if ( $status < 200 || $status >= 300 ) {
 			$message = isset( $data['error']['message'] ) ? $data['error']['message'] : 'Error desconocido al llamar a la API.';
+			if ( defined( 'LAC_DEBUG' ) && LAC_DEBUG ) {
+				error_log( '[Limatco Chat] La API respondió ' . $status . ': ' . wp_remote_retrieve_body( $response ) );
+			}
 			return new WP_Error( 'lac_api_error', $message );
 		}
 
