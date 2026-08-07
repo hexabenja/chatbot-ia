@@ -41,20 +41,6 @@
 		return el;
 	}
 
-	// El nonce que viene en lacChatConfig puede estar "congelado" en HTML
-	// cacheado (Cloudflare, plugin de caché, etc.), así que en vez de usarlo
-	// directamente, se pide uno fresco a /nonce (que nunca se cachea) justo
-	// antes de cada mensaje.
-	function getFreshNonce() {
-		return fetch( lacChatConfig.restUrl.replace( '/message', '/nonce' ), {
-			method: 'GET',
-			cache: 'no-store'
-		} )
-			.then( function ( response ) { return response.json(); } )
-			.then( function ( data ) { return data.nonce; } )
-			.catch( function () { return lacChatConfig.nonce; } ); // fallback si /nonce falla
-	}
-
 	function sendMessage( message ) {
 		appendMessage( 'user', message );
 		history.push( { role: 'user', content: message } );
@@ -62,18 +48,15 @@
 		var loadingEl = appendMessage( 'assistant', 'Escribiendo…' );
 		loadingEl.classList.add( 'lac-loading' );
 
-		getFreshNonce().then( function ( nonce ) {
-			return fetch( lacChatConfig.restUrl, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'X-WP-Nonce': nonce
-				},
-				body: JSON.stringify( {
-					message: message,
-					history: history
-				} )
-			} );
+		fetch( lacChatConfig.restUrl, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify( {
+				message: message,
+				history: history
+			} )
 		} )
 			.then( function ( response ) {
 				return response.json().then( function ( data ) {
