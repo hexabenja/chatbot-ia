@@ -58,20 +58,20 @@ class Limatco_Chat_Api {
 	public function handle_message( WP_REST_Request $request ) {
 
 		if ( ! wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+		error_log("Revisar si hay algún plugin de Caché, Cloudfare o modo administrador de WP activo");
 			return new WP_REST_Response( array( 'error' => 'Nonce inválido o expirado, recargue la página' ), 403 );
-			echo "Revisar si hay algún plugin de Caché, Cloudfare o modo administrador de WP activo \n";
 		}
 
 		$rate_limit_error = $this->check_rate_limit();
 		if ( is_wp_error( $rate_limit_error ) ) {
-			return new WP_REST_Response( array( 'error' => 'Muchos usuarios están línea en este momento, espere un momento y recargue la página' $rate_limit_error->get_error_message() ), 429 );
-			echo "Error 429 \n";
+			error_log("Error 429");
+			return new WP_REST_Response( array( 'error' => $rate_limit_error->get_error_message() ), 429 );	
 		}
 
 		$user_message = trim( $request->get_param( 'message' ) );
 		if ( empty( $user_message ) ) {
+			error_log("Error 400");
 			return new WP_REST_Response( array( 'error' => 'Mensaje vacío, escriba su consulta para que le podamos ayudar' ), 400 );
-			echo "Error 400 \n";
 		}
 
 		$history = $request->get_param( 'history' );
@@ -81,11 +81,11 @@ class Limatco_Chat_Api {
 
 		$api_key = get_option( 'lac_api_key', '' );
 		if ( empty( $api_key ) ) {
-			return new WP_REST_Response( array( 'error' => 'Espere un momento y recargue la página' ), 500 );
-			echo "No hay API configurada en el sistema \n";
+			error_log("No hay API configurada en el sistema");
+			return new WP_REST_Response( array( 'error' => 'Espere un momento y recargue la página' ), 500 );			
 		}
 
-		$model = get_option( 'lac_model', '' );
+		$model = get_option( 'lac_model', 'gemini-2.0-flash' );
 
 		// 1.- Clasifica la consulta (categoría + keywords).
 		$classification = $this->classify_query( $api_key, $model, $user_message );
@@ -108,8 +108,8 @@ class Limatco_Chat_Api {
 		$response = $this->call_gemini_api( $api_key, $model, $full_system, $messages, 800 );
 
 		if ( is_wp_error( $response ) ) {
+			error_log("Error 502 posterior a la consulta del usuario, revisar api, modelo y o mensaje");
 			return new WP_REST_Response( array( 'error' => 'Error al intentar crear una respuesta, vuelva a intentar en unos momentos,' ), 502 );
-			echo "Error 502 posterior a la consulta del usuario, revisar api, modelo y o mensaje \n";
 		}
 
 		return new WP_REST_Response( array( 'reply' => $response ), 200 );
