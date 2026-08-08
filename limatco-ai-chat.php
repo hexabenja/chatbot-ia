@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Limatco AI Chat
  * Description: Popup de chat con modelo de IA que responde preguntas basándose únicamente en el catálogo/información de Limatco.
- * Version: 1.0
+ * Version: 0.5.0
  * Author: Limatco
  * Text Domain: limatco-ai-chat
  * Notas de última versión, se modificó para que usase datos del wc_get_products e implementar API de DeepsSeek usando el SDK de Anthropic
@@ -10,8 +10,7 @@
  * 0.3.1: Pequeños arreglos
  * 0.4.0: Arreglos menores con el endpoint
  * 0.5.0: se removió el wp-nonce para diagnosticos
- * Oficial 1.0: Se agregó devuelta el soporte agregandole Gemini y agegó devuelta el Nonce
-*/ 
+*/
 
 
 if ( ! defined( 'ABSPATH' ) ) {
