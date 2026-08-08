@@ -3,19 +3,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/**
- * Endpoint REST que el widget consume. Flujo por cada mensaje:
- *  1) classify_query()   -> el modelo detecta categoría + keywords de búsqueda
- *  2) Limatco_Chat_Context -> busca en WooCommerce con esa categoría/keywords
- *  3) call_anthropic_api() -> respuesta final, usando solo esos productos como contexto
- *
- * La API key nunca se expone al navegador: todo pasa por aquí (server-side).
- */
+/** Endpoint REST: classify_query() detecta categoría/keywords, Limatco_Chat_Context busca en WooCommerce, y call_gemini_api() responde usando solo esos productos como contexto. Se usa el formato "messages"/"choices". La API key nunca se expone al navegador. */
 class Limatco_Chat_Api {
 
 	const NAMESPACE_ROUTE = 'limatco-chat/v1';
-	const ANTHROPIC_ENDPOINT = 'https://api.deepseek.com/anthropic/v1/messages';
-	const ANTHROPIC_VERSION  = '2023-06-01';
+	// Endpoint Gemini compatible con OpenAI: mismo formato de "messages" y respuesta en choices[0].message.content.
+	const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 	public function __construct() {
 		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
@@ -28,7 +21,7 @@ class Limatco_Chat_Api {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'handle_message' ),
-				'permission_callback' => '__return_true', // Público: es un chat de cara al visitante.
+				'permission_callback' => '__return_true', // Chat público
 				'args'                => array(
 					'message' => array(
 						'required'          => true,
@@ -43,10 +36,7 @@ class Limatco_Chat_Api {
 			)
 		);
 
-		// El HTML de la página se cachea (Cloudflare / plugin de caché), así
-		// que un nonce incrustado en ese HTML queda "congelado" y termina
-		// expirado para casi todos los visitantes. Esta ruta entrega un
-		// nonce fresco en cada llamada, independiente del caché de la página.
+		// El HTML de la página al cachearse ya sea por navegador, plugin o Cloudafare queda con el mismo WP-nonce, este código entrega un nonce nuevo en cada request.
 		register_rest_route(
 			self::NAMESPACE_ROUTE,
 			'/nonce',
@@ -60,30 +50,28 @@ class Limatco_Chat_Api {
 
 	public function handle_nonce() {
 		$response = new WP_REST_Response( array( 'nonce' => wp_create_nonce( 'wp_rest' ) ), 200 );
-		// Instruye a Cloudflare y a navegadores a no cachear esta respuesta,
-		// para que siempre entregue un nonce vigente.
+		// Evita que Cloudflare y navegadores cacheen el WP-Nonce.
 		$response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
 		return $response;
 	}
 
 	public function handle_message( WP_REST_Request $request ) {
 
-		// --- SOLO PARA DEBUG: agrega define('LAC_SKIP_NONCE_CHECK', true);
-		// en wp-config.php para saltar esta verificación mientras se
-		// diagnostica el "No se pudo conectar". Quitar después de probar. ---
-		if ( ! ( defined( 'LAC_SKIP_NONCE_CHECK' ) && LAC_SKIP_NONCE_CHECK )
-			&& ! wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
-			return new WP_REST_Response( array( 'error' => 'Nonce inválido o expirado, recarga la página.' ), 403 );
+		if ( ! wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+			return new WP_REST_Response( array( 'error' => 'Nonce inválido o expirado, recargue la página' ), 403 );
+			echo "Revisar si hay algún plugin de Caché, Cloudfare o modo administrador de WP activo \n";
 		}
 
 		$rate_limit_error = $this->check_rate_limit();
 		if ( is_wp_error( $rate_limit_error ) ) {
-			return new WP_REST_Response( array( 'error' => $rate_limit_error->get_error_message() ), 429 );
+			return new WP_REST_Response( array( 'error' => 'Muchos usuarios están línea en este momento, espere un momento y recargue la página' $rate_limit_error->get_error_message() ), 429 );
+			echo "Error 429 \n";
 		}
 
 		$user_message = trim( $request->get_param( 'message' ) );
 		if ( empty( $user_message ) ) {
-			return new WP_REST_Response( array( 'error' => 'Mensaje vacío.' ), 400 );
+			return new WP_REST_Response( array( 'error' => 'Mensaje vacío, escriba su consulta para que le podamos ayudar' ), 400 );
+			echo "Error 400 \n";
 		}
 
 		$history = $request->get_param( 'history' );
@@ -93,45 +81,41 @@ class Limatco_Chat_Api {
 
 		$api_key = get_option( 'lac_api_key', '' );
 		if ( empty( $api_key ) ) {
-			return new WP_REST_Response( array( 'error' => 'El plugin no está configurado (falta API key).' ), 500 );
+			return new WP_REST_Response( array( 'error' => 'Espere un momento y recargue la página' ), 500 );
+			echo "No hay API configurada en el sistema \n";
 		}
 
-		$model = get_option( 'lac_model', 'deepseek-v4-flash' );
+		$model = get_option( 'lac_model', '' );
 
-		// Paso 1: clasificar la consulta (categoría + keywords).
+		// 1.- Clasifica la consulta (categoría + keywords).
 		$classification = $this->classify_query( $api_key, $model, $user_message );
 		if ( is_wp_error( $classification ) ) {
 			// Si falla la clasificación, seguimos igual pero sin filtro de categoría.
 			$classification = array( 'category' => '', 'keywords' => $user_message );
 		}
 
-		// Paso 2: buscar en WooCommerce con esa categoría/keywords.
+		// 2.- Buscar en WooCommerce con esa categoría/keywords. IMPLEMENTAR POSTERIOR A BUSCADOR DE SITIO WEB (EJ: PORCELANATOS)
 		$context = Limatco_Chat_Context::get_context_for_query(
 			$classification['category'],
 			$classification['keywords']
 		);
 
-		// Paso 3: responder usando SOLO esos productos como contexto.
+		// 3.- Responder usando SOLO esos productos como contexto.
 		$system_prompt = get_option( 'lac_system_prompt', '' );
-		$full_system   = $system_prompt . "\n\n--- PRODUCTOS ENCONTRADOS PARA ESTA CONSULTA ---\n" . $context;
+		$full_system   = $system_prompt . "\n\n--- Acorde a su consulta:\n" . $context;
 
 		$messages = $this->build_messages( $history, $user_message );
-		$response = $this->call_anthropic_api( $api_key, $model, $full_system, $messages, 800 );
+		$response = $this->call_gemini_api( $api_key, $model, $full_system, $messages, 800 );
 
 		if ( is_wp_error( $response ) ) {
-			return new WP_REST_Response( array( 'error' => $response->get_error_message() ), 502 );
+			return new WP_REST_Response( array( 'error' => 'Error al intentar crear una respuesta, vuelva a intentar en unos momentos,' ), 502 );
+			echo "Error 502 posterior a la consulta del usuario, revisar api, modelo y o mensaje \n";
 		}
 
 		return new WP_REST_Response( array( 'reply' => $response ), 200 );
 	}
 
-	/**
-	 * Paso 1: llamada rápida y barata (pocos tokens) que le pide al modelo
-	 * devolver SOLO un JSON con la categoría (de las categorías reales de
-	 * WooCommerce) y las palabras clave de búsqueda a partir del mensaje.
-	 *
-	 * @return array{category:string,keywords:string}|WP_Error
-	 */
+	/** Paso 1: llamada rápida y barata que le pide al modelo devolver SOLO un JSON con la categoría (de las categorías reales de WooCommerce) y las keywords de búsqueda a partir del mensaje. @return array{category:string,keywords:string}|WP_Error */
 	private function classify_query( $api_key, $model, $user_message ) {
 		$categories = Limatco_Chat_Context::get_available_categories();
 		$category_list = ! empty( $categories ) ? implode( ', ', array_values( $categories ) ) : '(sin categorías registradas)';
@@ -144,7 +128,7 @@ class Limatco_Chat_Api {
 			array( 'role' => 'user', 'content' => $user_message ),
 		);
 
-		$raw = $this->call_anthropic_api( $api_key, $model, $system, $messages, 150 );
+		$raw = $this->call_gemini_api( $api_key, $model, $system, $messages, 150 );
 
 		if ( is_wp_error( $raw ) ) {
 			return $raw;
@@ -167,16 +151,7 @@ class Limatco_Chat_Api {
 		);
 	}
 
-	/**
-	 * La API de Anthropic/DeepSeek exige roles estrictamente alternados
-	 * (user, assistant, user, ...), que el primer mensaje sea "user" y que
-	 * ningún content venga vacío. El historial que manda el widget no
-	 * garantiza nada de eso (puede empezar en "assistant" por el saludo
-	 * inicial del bot, o traer dos turnos del mismo rol seguidos por algún
-	 * bug del front-end). Antes eso llegaba tal cual a la API, que respondía
-	 * 400, y ese 400 terminaba mapeado como un 502 genérico acá. Ahora se
-	 * normaliza antes de enviarlo.
-	 */
+	/** Se exigen roles alternados (user, assistant, ...), que el primer mensaje sea "user" y que ningún content venga vacío (Gemini es más tolerante que Anthropic con esto, pero el historial del widget no lo garantiza), así que se normaliza aquí antes de enviarlo. */
 	private function build_messages( $history, $user_message ) {
 		$raw = array();
 
@@ -198,14 +173,12 @@ class Limatco_Chat_Api {
 			);
 		}
 
-		// Debe empezar en "user": si el primer turno guardado es del bot
-		// (ej. saludo inicial), lo descartamos.
+		// Debe empezar en "user": si el primer turno guardado es del bot (ej. saludo inicial), lo descartamos.
 		while ( ! empty( $raw ) && 'assistant' === $raw[0]['role'] ) {
 			array_shift( $raw );
 		}
 
-		// Colapsar turnos consecutivos del mismo rol (no debería pasar, pero
-		// si el front-end duplica un mensaje, esto evita el 400 de la API).
+		// Colapsar turnos consecutivos del mismo rol (evita el 400 de la API si el front-end duplica un mensaje).
 		$messages = array();
 		foreach ( $raw as $turn ) {
 			$last_index = count( $messages ) - 1;
@@ -216,8 +189,7 @@ class Limatco_Chat_Api {
 			$messages[] = $turn;
 		}
 
-		// El mensaje nuevo del usuario nunca debe quedar duplicado ni
-		// pegado a otro turno "user" sin alternar.
+		// El mensaje nuevo del usuario nunca debe quedar duplicado ni pegado a otro turno "user" sin alternar.
 		$last_index = count( $messages ) - 1;
 		if ( $last_index >= 0 && 'user' === $messages[ $last_index ]['role'] ) {
 			$messages[ $last_index ]['content'] .= "\n" . $user_message;
@@ -231,41 +203,39 @@ class Limatco_Chat_Api {
 		return $messages;
 	}
 
-	/**
-	 * Llamada genérica a la API de Anthropic. Se reutiliza tanto para
-	 * clasificar (paso 1) como para responder (paso 3).
-	 */
-	private function call_anthropic_api( $api_key, $model, $system_prompt, $messages, $max_tokens ) {
+	/** Llamada genérica a la API de Gemini (endpoint OpenAI-compatible), reutilizada para clasificar (paso 1) y responder (paso 3). A diferencia de Anthropic (system aparte), aquí el prompt de sistema va como un mensaje más dentro de "messages", con role:"system" al principio. */
+	private function call_gemini_api( $api_key, $model, $system_prompt, $messages, $max_tokens ) {
+		$full_messages = array();
+		if ( '' !== trim( (string) $system_prompt ) ) {
+			$full_messages[] = array(
+				'role'    => 'system',
+				'content' => $system_prompt,
+			);
+		}
+		foreach ( $messages as $message ) {
+			$full_messages[] = $message;
+		}
+
 		$body = array(
 			'model'      => $model,
 			'max_tokens' => $max_tokens,
-			'system'     => $system_prompt,
-			'messages'   => $messages,
+			'messages'   => $full_messages,
 		);
 
 		$response = wp_remote_post(
-			self::ANTHROPIC_ENDPOINT,
+			self::GEMINI_ENDPOINT,
 			array(
 				'headers' => array(
-					'x-api-key'         => $api_key,
-					'anthropic-version' => self::ANTHROPIC_VERSION,
-					'content-type'      => 'application/json',
+					'Authorization' => 'Bearer ' . $api_key,
+					'content-type'  => 'application/json',
 				),
 				'body'    => wp_json_encode( $body ),
-				// Con historial largo + respuesta de 800 tokens, 30s puede no
-				// alcanzar (a diferencia de una prueba en Postman con un solo
-				// mensaje corto).
+				// Con historial largo + respuesta de 800 tokens, 30s puede no alcanzar.
 				'timeout' => 45,
 			)
 		);
 
 		if ( is_wp_error( $response ) ) {
-			// SOLO PARA DEBUG: agrega define('LAC_DEBUG', true); en
-			// wp-config.php para ver el motivo real en el error_log. No queda
-			// prendido en producción a menos que definas esa constante.
-			if ( defined( 'LAC_DEBUG' ) && LAC_DEBUG ) {
-				error_log( '[Limatco Chat] Falla de red/timeout: ' . $response->get_error_code() . ' - ' . $response->get_error_message() );
-			}
 			return $response;
 		}
 
@@ -274,20 +244,10 @@ class Limatco_Chat_Api {
 
 		if ( $status < 200 || $status >= 300 ) {
 			$message = isset( $data['error']['message'] ) ? $data['error']['message'] : 'Error desconocido al llamar a la API.';
-			if ( defined( 'LAC_DEBUG' ) && LAC_DEBUG ) {
-				error_log( '[Limatco Chat] La API respondió ' . $status . ': ' . wp_remote_retrieve_body( $response ) );
-			}
 			return new WP_Error( 'lac_api_error', $message );
 		}
 
-		$text = '';
-		if ( ! empty( $data['content'] ) && is_array( $data['content'] ) ) {
-			foreach ( $data['content'] as $block ) {
-				if ( isset( $block['type'] ) && 'text' === $block['type'] ) {
-					$text .= $block['text'];
-				}
-			}
-		}
+		$text = isset( $data['choices'][0]['message']['content'] ) ? $data['choices'][0]['message']['content'] : '';
 
 		if ( empty( $text ) ) {
 			return new WP_Error( 'lac_empty_reply', 'La API no devolvió texto.' );
