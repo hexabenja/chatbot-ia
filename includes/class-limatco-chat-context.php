@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Construye el bloque de contexto a partir de una búsqueda dinámica en
  * WooCommerce (no de un catálogo estático). Se llama en cada mensaje,
- * con la categoría/keywords ya detectados por Limatco_Chat_Api::classify_query().
+ * con la categoría/keywords ya detectados con Limatco_Chat_Api::classify_query().
  */
 class Limatco_Chat_Context {
 
@@ -56,11 +56,12 @@ class Limatco_Chat_Context {
 		);
 
 		if ( ! empty( $category_slug ) ) {
-			$args['category'] = array( $category_slug );
+			// 'category' acepta un array de slugs de categorías en wc_get_products
+			$args['category'] = array( sanitize_text_field( $category_slug ) );
 		}
 
 		if ( ! empty( $keywords ) ) {
-			$args['s'] = $keywords;
+			$args['s'] = sanitize_text_field( $keywords );
 		}
 
 		$products = wc_get_products( $args );
@@ -71,7 +72,9 @@ class Limatco_Chat_Context {
 
 		$lines = array();
 		foreach ( $products as $product ) {
-			$lines[] = self::format_product_line( $product );
+			if ( is_a( $product, 'WC_Product' ) ) {
+				$lines[] = self::format_product_line( $product );
+			}
 		}
 
 		return implode( "\n", $lines );
@@ -96,10 +99,12 @@ class Limatco_Chat_Context {
 
 		if ( ! empty( $sku ) ) {
 			$parts[] = 'SKU: ' . $sku;
-		}
+		} 
+		// Gran parte de los productos  no tienen shortdescription asi que en Plan B que la IA sustiya short por description
 		if ( ! empty( $short_desc ) ) {
-			$parts[] = 'Descripción: ' . $short_desc;
+			$parts[] = 'Descripción: ' . $short_desc; 
 		}
+		// Le agrega enlace al Link del producto
 		$parts[] = 'Link: ' . $url;
 
 		return implode( ' | ', $parts );
