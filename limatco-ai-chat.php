@@ -2,17 +2,14 @@
 /**
  * Plugin Name: Limatco AI Chat
  * Description: Popup de chat con modelo de IA que responde preguntas basándose únicamente en el catálogo/información de Limatco.
- * Version: 1.0.1
+ * Version: 0.5.0
  * Author: Limatco
  * Text Domain: limatco-ai-chat
- * Notas de última versión: usa wc_get_products, API de Gemini.
- * 0.3.0: Se corrigió una mala práctica y temas de endpoint post
+ * Notas de última versión, se modificó para que usase datos del wc_get_products e implementar API de DeepsSeek usando el SDK de Anthropic
+ *  * 0.3.0: Se corrigió una mala práctica y temas de endpoint post
  * 0.3.1: Pequeños arreglos
  * 0.4.0: Arreglos menores con el endpoint
  * 0.5.0: se removió el wp-nonce para diagnosticos
- * 0.6.0: nonce reemplazado por chequeo de Origin/Referer constante de 403); 502 ahora solo para fallas de red reales, no para errores de la API; endpoint DeepSeek (sin key de Claude aún)
- * 1.0.0: Se agregó devuelta wp-nonce, funcionalidad reestablecida a excepción de modo Administrador compatibilidad con API de Google Gemini
- * 1.0.1: Se modificaron colores de botón y header de chatbot en gradiente.
 */
 
 
@@ -67,6 +64,7 @@ function lac_enqueue_assets() {
 		'lacChatConfig',
 		array(
 			'restUrl'      => esc_url_raw( rest_url( 'limatco-chat/v1/message' ) ),
+			'nonce'        => wp_create_nonce( 'wp_rest' ),
 			'welcomeText'  => get_option( 'lac_welcome_text', '¡Hola! ¿En qué te puedo ayudar?' ),
 			'placeholder'  => get_option( 'lac_placeholder_text', 'Escribe tu pregunta…' ),
 			'buttonLabel'  => get_option( 'lac_button_label', 'Chat' ),

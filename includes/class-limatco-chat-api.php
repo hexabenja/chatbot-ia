@@ -9,8 +9,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  *  2) Limatco_Chat_Context -> busca en WooCommerce con esa categoría/keywords
  *  3) call_anthropic_api() -> respuesta final, usando solo esos productos como contexto
  *
- * Usa DeepSeek V4 a través de su endpoint compatible con el formato de
- * mensajes de Anthropic (mismo body/headers, solo cambia el host).
  * La API key nunca se expone al navegador: todo pasa por aquí (server-side).
  */
 class Limatco_Chat_Api {
@@ -44,17 +42,38 @@ class Limatco_Chat_Api {
 				),
 			)
 		);
+
+		// El HTML de la página se cachea (Cloudflare / plugin de caché), así
+		// que un nonce incrustado en ese HTML queda "congelado" y termina
+		// expirado para casi todos los visitantes. Esta ruta entrega un
+		// nonce fresco en cada llamada, independiente del caché de la página.
+		register_rest_route(
+			self::NAMESPACE_ROUTE,
+			'/nonce',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'handle_nonce' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+	}
+
+	public function handle_nonce() {
+		$response = new WP_REST_Response( array( 'nonce' => wp_create_nonce( 'wp_rest' ) ), 200 );
+		// Instruye a Cloudflare y a navegadores a no cachear esta respuesta,
+		// para que siempre entregue un nonce vigente.
+		$response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+		return $response;
 	}
 
 	public function handle_message( WP_REST_Request $request ) {
 
-		// El nonce de WP dependía de cookies de sesión y de que el HTML no
-		// estuviera cacheado (Cloudflare, plugins de caché), lo que lo hacía
-		// fallar constantemente para visitantes anónimos reales. Como esta
-		// ruta ya es pública (permission_callback __return_true), en vez de
-		// nonce se valida que la petición venga del propio dominio del sitio.
-		if ( ! $this->request_is_same_origin( $request ) ) {
-			return new WP_REST_Response( array( 'error' => 'Origen no permitido.' ), 403 );
+		// --- SOLO PARA DEBUG: agrega define('LAC_SKIP_NONCE_CHECK', true);
+		// en wp-config.php para saltar esta verificación mientras se
+		// diagnostica el "No se pudo conectar". Quitar después de probar. ---
+		if ( ! ( defined( 'LAC_SKIP_NONCE_CHECK' ) && LAC_SKIP_NONCE_CHECK )
+			&& ! wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+			return new WP_REST_Response( array( 'error' => 'Nonce inválido o expirado, recarga la página.' ), 403 );
 		}
 
 		$rate_limit_error = $this->check_rate_limit();
@@ -72,23 +91,15 @@ class Limatco_Chat_Api {
 			$history = array();
 		}
 
-		// Debe ser una API key de DeepSeek (Platform → API Keys en
-		// platform.deepseek.com), no de Anthropic — este endpoint usa el
-		// modo de compatibilidad de DeepSeek con el formato de Anthropic.
 		$api_key = get_option( 'lac_api_key', '' );
 		if ( empty( $api_key ) ) {
 			return new WP_REST_Response( array( 'error' => 'El plugin no está configurado (falta API key).' ), 500 );
 		}
 
 		$model = get_option( 'lac_model', 'deepseek-v4-flash' );
-		// Paso 1 es una llamada corta y barata (clasificar categoría/keywords).
-		// V4 Flash ya es el modelo rápido/económico de DeepSeek, así que se
-		// reusa el mismo para ambos pasos (a diferencia de Claude, donde
-		// convenía separar Haiku de Sonnet).
-		$classify_model = get_option( 'lac_classify_model', 'deepseek-v4-flash' );
 
 		// Paso 1: clasificar la consulta (categoría + keywords).
-		$classification = $this->classify_query( $api_key, $classify_model, $user_message );
+		$classification = $this->classify_query( $api_key, $model, $user_message );
 		if ( is_wp_error( $classification ) ) {
 			// Si falla la clasificación, seguimos igual pero sin filtro de categoría.
 			$classification = array( 'category' => '', 'keywords' => $user_message );
@@ -108,15 +119,7 @@ class Limatco_Chat_Api {
 		$response = $this->call_anthropic_api( $api_key, $model, $full_system, $messages, 800 );
 
 		if ( is_wp_error( $response ) ) {
-			// 502 solo cuando de verdad no se pudo conectar (timeout, DNS,
-			// etc.). Si DeepSeek respondió pero con error (401, 402, 429...),
-			// eso no es "Bad Gateway": es 500 con mensaje genérico para no
-			// exponer detalles internos de la API al navegador.
-			$status = ( 'lac_network_error' === $response->get_error_code() ) ? 502 : 500;
-			return new WP_REST_Response(
-				array( 'error' => 'El asistente no está disponible en este momento, intenta de nuevo en un momento.' ),
-				$status
-			);
+			return new WP_REST_Response( array( 'error' => $response->get_error_message() ), 502 );
 		}
 
 		return new WP_REST_Response( array( 'reply' => $response ), 200 );
@@ -165,7 +168,7 @@ class Limatco_Chat_Api {
 	}
 
 	/**
-	 * La API de Anthropic exige roles estrictamente alternados
+	 * La API de Anthropic/DeepSeek exige roles estrictamente alternados
 	 * (user, assistant, user, ...), que el primer mensaje sea "user" y que
 	 * ningún content venga vacío. El historial que manda el widget no
 	 * garantiza nada de eso (puede empezar en "assistant" por el saludo
@@ -258,11 +261,12 @@ class Limatco_Chat_Api {
 
 		if ( is_wp_error( $response ) ) {
 			// SOLO PARA DEBUG: agrega define('LAC_DEBUG', true); en
-			// wp-config.php para ver el motivo real en el error_log.
+			// wp-config.php para ver el motivo real en el error_log. No queda
+			// prendido en producción a menos que definas esa constante.
 			if ( defined( 'LAC_DEBUG' ) && LAC_DEBUG ) {
 				error_log( '[Limatco Chat] Falla de red/timeout: ' . $response->get_error_code() . ' - ' . $response->get_error_message() );
 			}
-			return new WP_Error( 'lac_network_error', $response->get_error_message() );
+			return $response;
 		}
 
 		$status = wp_remote_retrieve_response_code( $response );
@@ -271,7 +275,7 @@ class Limatco_Chat_Api {
 		if ( $status < 200 || $status >= 300 ) {
 			$message = isset( $data['error']['message'] ) ? $data['error']['message'] : 'Error desconocido al llamar a la API.';
 			if ( defined( 'LAC_DEBUG' ) && LAC_DEBUG ) {
-				error_log( '[Limatco Chat] DeepSeek respondió ' . $status . ': ' . wp_remote_retrieve_body( $response ) );
+				error_log( '[Limatco Chat] La API respondió ' . $status . ': ' . wp_remote_retrieve_body( $response ) );
 			}
 			return new WP_Error( 'lac_api_error', $message );
 		}
@@ -290,32 +294,6 @@ class Limatco_Chat_Api {
 		}
 
 		return $text;
-	}
-
-	/**
-	 * Reemplaza al nonce como filtro liviano anti-abuso: confirma que la
-	 * petición venga del propio dominio (via Origin u, si falta, Referer).
-	 * No es autenticación fuerte -ambos headers los puede falsificar un
-	 * script hecho a mano-, pero filtra el abuso casual sin depender de
-	 * cookies de sesión ni de que el HTML no esté cacheado.
-	 */
-	private function request_is_same_origin( WP_REST_Request $request ) {
-		$site_host = wp_parse_url( home_url(), PHP_URL_HOST );
-
-		$origin = $request->get_header( 'Origin' );
-		if ( ! empty( $origin ) ) {
-			return wp_parse_url( $origin, PHP_URL_HOST ) === $site_host;
-		}
-
-		$referer = $request->get_header( 'Referer' );
-		if ( ! empty( $referer ) ) {
-			return wp_parse_url( $referer, PHP_URL_HOST ) === $site_host;
-		}
-
-		// Sin Origin ni Referer (algunos navegadores/extensiones los
-		// bloquean legítimamente): no se puede verificar, se deja pasar y
-		// que el rate-limit por IP siga siendo la protección real.
-		return true;
 	}
 
 	private function check_rate_limit() {

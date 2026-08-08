@@ -48,21 +48,21 @@ class Limatco_Chat_Admin {
 				<?php settings_fields( 'lac_settings_group' ); ?>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row"><label for="lac_api_key">API Key (DeepSeek)</label></th>
+						<th scope="row"><label for="lac_api_key">API Key (Anthropic)</label></th>
 						<td>
 							<input type="password" id="lac_api_key" name="lac_api_key"
 								value="<?php echo esc_attr( get_option( 'lac_api_key', '' ) ); ?>"
 								class="regular-text" autocomplete="off" />
-							<p class="description">Key de DeepSeek (platform.deepseek.com), no de Anthropic. Se guarda en la base de datos de WP y solo se usa server-side; nunca se envía al navegador.</p>
+							<p class="description">Se guarda en la base de datos de WP y solo se usa server-side; nunca se envía al navegador.</p>
 						</td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="lac_model">Modelo</label></th>
 						<td>
 							<input type="text" id="lac_model" name="lac_model"
-								value="<?php echo esc_attr( get_option( 'lac_model', 'deepseek-v4-flash' ) ); ?>"
+								value="<?php echo esc_attr( get_option( 'lac_model', 'claude-sonnet-5' ) ); ?>"
 								class="regular-text" />
-							<p class="description">deepseek-v4-flash (rápido/económico) o deepseek-v4-pro (razonamiento más fuerte). Verifica el nombre vigente en api-docs.deepseek.com antes de publicar.</p>
+							<p class="description">Verifica el string de modelo vigente en docs.claude.com antes de publicar.</p>
 						</td>
 					</tr>
 					<tr>

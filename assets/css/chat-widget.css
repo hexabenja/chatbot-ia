@@ -13,7 +13,7 @@
 	padding: 12px 18px;
 	border: none;
 	border-radius: 999px;
-	background: linear-gradient(51deg, red, #3971fb); /* ajusta al color de marca de Limatco */
+	background: #0f7a3c; /* ajusta al color de marca de Limatco */
 	color: #fff;
 	font-size: 14px;
 	font-weight: 600;
@@ -42,7 +42,7 @@
 }
 
 .lac-chat-header {
-	background: linear-gradient(51deg, red, #3971fb);
+	background: #0f7a3c;
 	color: #fff;
 	padding: 12px 16px;
 	font-weight: 600;
@@ -81,7 +81,7 @@
 
 .lac-msg.user {
 	align-self: flex-end;
-	background: #3971fb;
+	background: #0f7a3c;
 	color: #fff;
 	border-bottom-right-radius: 2px;
 }
