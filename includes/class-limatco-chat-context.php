@@ -87,6 +87,8 @@ class Limatco_Chat_Context {
 		$short_desc  = wp_strip_all_tags( $product->get_short_description() );
 		$sku         = $product->get_sku();
 		$url         = get_permalink( $product->get_id() );
+		$product = get_page_by_title( 'Product Title', OBJECT, 'product' )
+		echo get_permalink( $product->ID );
 
 		$parts = array(
 			'- ' . $name,
