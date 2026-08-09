@@ -115,7 +115,7 @@ class Limatco_Chat_Api {
 			return new WP_REST_Response( array( 'error' => 'Error al intentar crear una respuesta, vuelva a intentar en unos momentos,' ), 502 );
 		}
 
-		return new WP_REST_Response( array( 'reply' => $response ), 200 );
+		return new WP_REST_Response( array( 'reply' => $this->markdown_to_html( $response ) ), 200 );
 	}
 
 	/** Paso 1: llamada rápida y barata que le pide al modelo devolver SOLO un JSON con la categoría (de las categorías reales de WooCommerce) y las keywords de búsqueda a partir del mensaje. @return array{category:string,keywords:string}|WP_Error */
@@ -206,6 +206,37 @@ class Limatco_Chat_Api {
 		return $messages;
 	}
 
+	/** Convierte carácteres de Markdown (negrita, links, listas) a HTML. */
+	private function markdown_to_html( $text ) {
+	$html = htmlspecialchars( $text, ENT_QUOTES, 'UTF-8' );
+	$html = preg_replace( '/\[([^\]]+)\]\(([^)]+)\)/', '<a href="$2" target="_blank" rel="noopener">$1</a>', $html );
+	$html = preg_replace( '/\*\*(.+?)\*\*/', '<strong>$1</strong>', $html );
+
+	$lines   = explode( "\n", $html );
+	$out     = array();
+	$in_list = false;
+
+	foreach ( $lines as $line ) {
+		if ( preg_match( '/^[-*]\s+(.*)/', $line, $m ) ) {
+			if ( ! $in_list ) {
+				$out[]   = '<ul>';
+				$in_list = true;
+			}
+			$out[] = '<li>' . $m[1] . '</li>';
+		} else {
+			if ( $in_list ) {
+				$out[]   = '</ul>';
+				$in_list = false;
+			}
+			$out[] = ( '' === trim( $line ) ) ? '' : '<p>' . $line . '</p>';
+		}
+	}
+	if ( $in_list ) {
+		$out[] = '</ul>';
+	}
+
+	return implode( '', $out );
+}
 	/** Llamada genérica a la API de Gemini (endpoint OpenAI-compatible), reutilizada para clasificar (paso 1) y responder (paso 3). A diferencia de Anthropic (system aparte), aquí el prompt de sistema va como un mensaje más dentro de "messages", con role:"system" al principio. */
 	private function call_gemini_api( $api_key, $model, $system_prompt, $messages, $max_tokens ) {
 		$full_messages = array();
