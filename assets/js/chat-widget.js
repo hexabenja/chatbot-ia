@@ -35,7 +35,7 @@
 	function appendMessage( role, text ) {
 		var el = document.createElement( 'div' );
 		el.className = 'lac-msg ' + role;
-		el.textContent = text;
+		el.innerHTML = text;
 		messagesEl.appendChild( el );
 		messagesEl.scrollTop = messagesEl.scrollHeight;
 		return el;
