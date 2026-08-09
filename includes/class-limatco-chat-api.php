@@ -10,6 +10,9 @@ class Limatco_Chat_Api {
 	// Endpoint Gemini compatible con OpenAI: mismo formato de "messages" y respuesta en choices[0].message.content.
 	const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
+	// Instrucciones de formato para la respuesta final (no para la clasificación). Se agregan al prompt de sistema junto con el contexto de productos.
+	const RESPONSE_FORMAT_INSTRUCTIONS = "Cuando muestres varios productos, agrúpalos por marca usando un encabezado en negrita por marca (**Nombre marca**), y lista cada producto como viñeta con el formato: [Nombre del producto](link) — breve descripción de uso. Usa Markdown (encabezados, listas y links) para que la respuesta sea fácil de leer. No repitas mecánicamente todos los campos del producto (precio, SKU, stock) en cada viñeta; menciona precio o stock solo si el usuario los pidió o si es relevante para la recomendación. Si solo hay uno o dos productos relevantes, responde en prosa natural en vez de forzar una lista.";
+
 	public function __construct() {
 		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
 	}
@@ -58,19 +61,19 @@ class Limatco_Chat_Api {
 	public function handle_message( WP_REST_Request $request ) {
 
 		if ( ! wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
-		error_log("Revisar si hay algún plugin de Caché, Cloudfare o modo administrador de WP activo");
+			error_log( 'Revisar si hay algún plugin de Caché, Cloudfare o modo administrador de WP activo' );
 			return new WP_REST_Response( array( 'error' => 'Nonce inválido o expirado, recargue la página' ), 403 );
 		}
 
 		$rate_limit_error = $this->check_rate_limit();
 		if ( is_wp_error( $rate_limit_error ) ) {
-			error_log("Error 429");
-			return new WP_REST_Response( array( 'error' => $rate_limit_error->get_error_message() ), 429 );	
+			error_log( 'Error 429' );
+			return new WP_REST_Response( array( 'error' => $rate_limit_error->get_error_message() ), 429 );
 		}
 
 		$user_message = trim( $request->get_param( 'message' ) );
 		if ( empty( $user_message ) ) {
-			error_log("Error 400");
+			error_log( 'Error 400' );
 			return new WP_REST_Response( array( 'error' => 'Mensaje vacío, escriba su consulta para que le podamos ayudar' ), 400 );
 		}
 
@@ -81,8 +84,8 @@ class Limatco_Chat_Api {
 
 		$api_key = get_option( 'lac_api_key', '' );
 		if ( empty( $api_key ) ) {
-			error_log("No hay API configurada en el sistema");
-			return new WP_REST_Response( array( 'error' => 'Espere un momento y recargue la página' ), 500 );			
+			error_log( 'No hay API configurada en el sistema' );
+			return new WP_REST_Response( array( 'error' => 'Espere un momento y recargue la página' ), 500 );
 		}
 
 		$model = get_option( 'lac_model', 'gemini-2.0-flash' );
@@ -100,15 +103,15 @@ class Limatco_Chat_Api {
 			$classification['keywords']
 		);
 
-		// 3.- Responder usando SOLO esos productos como contexto.
+		// 3.- Responder usando SOLO esos productos como contexto, con instrucciones de formato para que la respuesta sea legible (headers, listas, links) en vez de un volcado rígido de campos.
 		$system_prompt = get_option( 'lac_system_prompt', '' );
-		$full_system   = $system_prompt . "\n\n--- Acorde a su consulta:\n" . $context;
+		$full_system   = $system_prompt . "\n\n" . self::RESPONSE_FORMAT_INSTRUCTIONS . "\n\n--- Acorde a su consulta:\n" . $context;
 
 		$messages = $this->build_messages( $history, $user_message );
-		$response = $this->call_gemini_api( $api_key, $model, $full_system, $messages, 800 );
+		$response = $this->call_gemini_api( $api_key, $model, $full_system, $messages, 1200 );
 
 		if ( is_wp_error( $response ) ) {
-			error_log("Error 502 posterior a la consulta del usuario, revisar api, modelo y o mensaje");
+			error_log( 'Error 502 posterior a la consulta del usuario, revisar api, modelo y o mensaje' );
 			return new WP_REST_Response( array( 'error' => 'Error al intentar crear una respuesta, vuelva a intentar en unos momentos,' ), 502 );
 		}
 
@@ -230,7 +233,7 @@ class Limatco_Chat_Api {
 					'content-type'  => 'application/json',
 				),
 				'body'    => wp_json_encode( $body ),
-				// Con historial largo + respuesta de 800 tokens, 30s puede no alcanzar.
+				// Con historial largo + respuesta de 1200 tokens, 30s puede no alcanzar.
 				'timeout' => 45,
 			)
 		);
