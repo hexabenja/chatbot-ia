@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 	<div id="lac-chat-window" class="lac-chat-window" hidden>
 		<div class="lac-chat-header">
-			<span>Limatco — Asistente</span>
+			<span>[Beta] Asistente Virtual Limatco</span>
 			<button id="lac-close-btn" class="lac-close-btn" type="button" aria-label="Cerrar chat">&times;</button>
 		</div>
 
