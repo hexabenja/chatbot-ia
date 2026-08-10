@@ -38,8 +38,10 @@ class Limatco_Chat_Context {
 	}
 
 	/**
-	 * Ejecuta la búsqueda en WooCommerce y arma el texto de contexto
-	 * a partir de la categoría/keywords detectados en el mensaje del usuario.
+	 * Ejecuta la búsqueda en WooCommerce y arma el texto de contexto a
+	 * partir de la categoría/keywords detectados en el mensaje del usuario.
+	 *
+	 * Se agrega la búsqueda en cascada: categoría + keywords juntos no encuentran nada (combinación muy específica), reintenta solo con las keywords de la consulta del usuario y si tampoco encuentra nada, reintenta solo con la categoría, antes de no dar respuesta con algun producto.
 	 *
 	 * @param string $category_slug Slug de categoría (puede venir vacío).
 	 * @param string $keywords      Texto libre de búsqueda (puede venir vacío).
@@ -50,6 +52,33 @@ class Limatco_Chat_Context {
 			return 'WooCommerce no está activo en este sitio.';
 		}
 
+		// Cascada 1: categoría + keywords (específico)
+		$products = self::search_products( $category_slug, $keywords );
+
+		// Cascada 2: Reintenta solo con keywords.
+		if ( empty( $products ) && ! empty( $category_slug ) && ! empty( $keywords ) ) {
+			$products = self::search_products( '', $keywords );
+		}
+
+		// Cascada 3: Reintenta solo con la categoría (no keywords)
+		if ( empty( $products ) && ! empty( $category_slug ) ) {
+			$products = self::search_products( $category_slug, '' );
+		}
+		// Cascada 4: Búsqueda fallida
+		if ( empty( $products ) ) {
+			return 'No se encontraron productos que calcen con esa búsqueda en nuestro catálogo, intenta detallando tu búsqueda.';
+		}
+
+		$lines = array();
+		foreach ( $products as $product ) {
+			$lines[] = self::format_product_line( $product );
+		}
+
+		return implode( "\n", $lines );
+	}
+
+	/** Ejecuta una única consulta a WooCommerce con la categoría/keywords dados (cualquiera de los dos puede venir vacío). */
+	private static function search_products( $category_slug, $keywords ) {
 		$args = array(
 			'status' => 'publish',
 			'limit'  => self::MAX_PRODUCTS,
@@ -63,18 +92,7 @@ class Limatco_Chat_Context {
 			$args['s'] = $keywords;
 		}
 
-		$products = wc_get_products( $args );
-
-		if ( empty( $products ) ) {
-			return 'No se encontraron productos que calcen con esa búsqueda en el catálogo.';
-		}
-
-		$lines = array();
-		foreach ( $products as $product ) {
-			$lines[] = self::format_product_line( $product );
-		}
-
-		return implode( "\n", $lines );
+		return wc_get_products( $args );
 	}
 
 	/**
