@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Limatco_Chat_Context {
 
-	const MAX_PRODUCTS = 15;
+	const MAX_PRODUCTS = 7;
 
 	/**
 	 * Devuelve la lista de categorías de producto disponibles (slug => nombre),
