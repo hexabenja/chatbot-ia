@@ -13,6 +13,7 @@
  * 0.6.0: tarjetas de producto (imagen, precio, stock, oferta) debajo de la respuesta
  * 0.6.1: el clasificador ahora usa el historial reciente (respuestas de seguimiento ya no quedan sin resultados)
  * 0.6.2: precio decodificado (&#36; -> $), tarjeta rediseñada con recuadro de oferta y % de descuento, clasificador ignora respuestas vagas ("todas las alternativas", "tonos neutros") y reusa el tema ya buscado
+ * 0.6.3: el texto de la respuesta ya no repite el listado de productos (las tarjetas se bastan solas); orden de resultados aleatorizado con shuffle() en PHP (no ORDER BY RAND()) para no favorecer siempre la misma marca
 */
 
 
@@ -22,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'LAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LAC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'LAC_VERSION', '0.4.2' );
+define( 'LAC_VERSION', '0.4.3' );
 
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-admin.php';
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-api.php';
