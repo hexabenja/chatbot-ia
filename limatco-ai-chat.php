@@ -10,6 +10,8 @@
  * 0.3.1: Pequeños arreglos
  * 0.4.0: Arreglos menores con el endpoint
  * 0.5.0: se removió el wp-nonce para diagnosticos
+ * 0.1.2: tarjetas de producto (imagen, precio, stock, oferta) debajo de la respuesta
+ * 0.1.3: el clasificador ahora usa el historial reciente (respuestas de seguimiento ya no quedan sin resultados)
 */
 
 
@@ -19,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'LAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LAC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'LAC_VERSION', '0.3.0' );
+define( 'LAC_VERSION', '0.4.1' );
 
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-admin.php';
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-api.php';
