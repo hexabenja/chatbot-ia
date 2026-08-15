@@ -55,13 +55,6 @@
 			card.target = '_blank';
 			card.rel = 'noopener';
 
-			if ( product.on_sale ) {
-				var saleBadge = document.createElement( 'span' );
-				saleBadge.className = 'lac-badge lac-badge-sale';
-				saleBadge.textContent = 'Oferta';
-				card.appendChild( saleBadge );
-			}
-
 			var imageWrap = document.createElement( 'div' );
 			imageWrap.className = 'lac-product-image';
 			if ( product.image ) {
@@ -81,27 +74,31 @@
 			name.textContent = product.name || '';
 			info.appendChild( name );
 
-			var priceRow = document.createElement( 'div' );
-			priceRow.className = 'lac-product-price-row';
-
-			if ( product.on_sale && product.regular_price ) {
-				var regularPrice = document.createElement( 'span' );
-				regularPrice.className = 'lac-product-regular-price';
-				regularPrice.textContent = product.regular_price;
-				priceRow.appendChild( regularPrice );
-			}
-
-			var price = document.createElement( 'span' );
-			price.className = 'lac-product-price';
-			price.textContent = product.price || '';
-			priceRow.appendChild( price );
-
-			info.appendChild( priceRow );
-
 			var stock = document.createElement( 'span' );
 			stock.className = 'lac-badge lac-badge-stock ' + ( product.in_stock ? 'in-stock' : 'out-of-stock' );
 			stock.textContent = product.stock_text || ( product.in_stock ? 'Disponible' : 'Sin stock' );
 			info.appendChild( stock );
+
+			var price = document.createElement( 'div' );
+			price.className = 'lac-product-price';
+			price.textContent = product.price || '';
+			info.appendChild( price );
+
+			if ( product.on_sale && product.regular_price ) {
+				var regularPrice = document.createElement( 'div' );
+				regularPrice.className = 'lac-product-regular-price';
+				regularPrice.textContent = product.regular_price;
+				info.appendChild( regularPrice );
+
+				var saleBox = document.createElement( 'div' );
+				saleBox.className = 'lac-sale-box';
+				var saleLabel = document.createElement( 'span' );
+				saleLabel.textContent = product.discount_percent > 0
+					? '-' + product.discount_percent + '% Oferta'
+					: 'Oferta';
+				saleBox.appendChild( saleLabel );
+				info.appendChild( saleBox );
+			}
 
 			card.appendChild( info );
 			container.appendChild( card );
