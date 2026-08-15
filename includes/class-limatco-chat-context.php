@@ -45,11 +45,16 @@ class Limatco_Chat_Context {
 	 *
 	 * @param string $category_slug Slug de categoría (puede venir vacío).
 	 * @param string $keywords      Texto libre de búsqueda (puede venir vacío).
-	 * @return string Texto formateado listo para inyectar en el prompt.
+	 * @return array{text:string,products:array} 'text' va al prompt de la IA;
+	 *         'products' es la data (imagen/precio/stock/oferta) para las
+	 *         tarjetas que el widget pinta debajo de la respuesta.
 	 */
 	public static function get_context_for_query( $category_slug, $keywords ) {
 		if ( ! function_exists( 'wc_get_products' ) ) {
-			return 'WooCommerce no está activo en este sitio.';
+			return array(
+				'text'     => 'WooCommerce no está activo en este sitio.',
+				'products' => array(),
+			);
 		}
 
 		// Cascada 1: categoría + keywords (específico)
@@ -66,15 +71,23 @@ class Limatco_Chat_Context {
 		}
 		// Cascada 4: Búsqueda fallida
 		if ( empty( $products ) ) {
-			return 'No se encontraron productos que calcen con esa búsqueda en nuestro catálogo, intenta detallando tu búsqueda.';
+			return array(
+				'text'     => 'No se encontraron productos que calcen con esa búsqueda en nuestro catálogo, intenta detallando tu búsqueda.',
+				'products' => array(),
+			);
 		}
 
-		$lines = array();
+		$lines          = array();
+		$product_cards = array();
 		foreach ( $products as $product ) {
-			$lines[] = self::format_product_line( $product );
+			$lines[]         = self::format_product_line( $product );
+			$product_cards[] = self::build_product_card_data( $product );
 		}
 
-		return implode( "\n", $lines );
+		return array(
+			'text'     => implode( "\n", $lines ),
+			'products' => $product_cards,
+		);
 	}
 
 	/** Ejecuta una única consulta a WooCommerce con la categoría/keywords dados (cualquiera de los dos puede venir vacío). */
@@ -100,7 +113,7 @@ class Limatco_Chat_Context {
 	 */
 	private static function format_product_line( $product ) {
 		$name        = $product->get_name();
-		$price       = wp_strip_all_tags( wc_price( $product->get_price() ) );
+		$price       = html_entity_decode( wp_strip_all_tags( wc_price( $product->get_price() ) ), ENT_QUOTES, 'UTF-8' );
 		$stock       = $product->is_in_stock() ? 'Disponible' : 'Sin stock';
 		$long_desc   = wp_strip_all_tags( $product->get_description() );
 		$sku         = $product->get_sku();
@@ -121,5 +134,42 @@ class Limatco_Chat_Context {
 		$parts[] = 'Link: ' . $url;
 
 		return implode( ' | ', $parts );
+	}
+
+	/**
+	 * Arma la data (imagen, precio, stock, oferta) que el widget usa para
+	 * pintar la tarjeta visual de cada producto debajo de la respuesta.
+	 */
+	private static function build_product_card_data( $product ) {
+		$image_id  = $product->get_image_id();
+		$image_url = $image_id
+			? wp_get_attachment_image_url( $image_id, 'medium' )
+			: wc_placeholder_img_src( 'medium' );
+
+		$on_sale = $product->is_on_sale();
+
+		$discount_percent = 0;
+		if ( $on_sale ) {
+			$regular = (float) $product->get_regular_price();
+			$current = (float) $product->get_price();
+			if ( $regular > 0 ) {
+				$discount_percent = (int) round( ( ( $regular - $current ) / $regular ) * 100 );
+			}
+		}
+
+		return array(
+			'id'                => $product->get_id(),
+			'name'              => $product->get_name(),
+			'image'             => $image_url,
+			'url'               => get_permalink( $product->get_id() ),
+			// wc_price() devuelve el símbolo de moneda como entidad HTML (&#36;);
+			// hay que decodificarla además de quitar las etiquetas, o queda "&#36;24.225" en pantalla.
+			'price'             => html_entity_decode( wp_strip_all_tags( wc_price( $product->get_price() ) ), ENT_QUOTES, 'UTF-8' ),
+			'regular_price'     => $on_sale ? html_entity_decode( wp_strip_all_tags( wc_price( $product->get_regular_price() ) ), ENT_QUOTES, 'UTF-8' ) : '',
+			'on_sale'           => $on_sale,
+			'discount_percent'  => $discount_percent,
+			'in_stock'          => $product->is_in_stock(),
+			'stock_text'        => $product->is_in_stock() ? 'Disponible' : 'Sin stock',
+		);
 	}
 }
