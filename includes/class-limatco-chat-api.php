@@ -134,14 +134,7 @@ class Limatco_Chat_Api {
 		$categories = Limatco_Chat_Context::get_available_categories();
 		$category_list = ! empty( $categories ) ? implode( ', ', array_values( $categories ) ) : '(sin categorías registradas)';
 
-		$system = "Eres un clasificador. Dada una conversación entre un usuario y un asistente sobre productos de construcción, "
-			. "analiza el MENSAJE MÁS RECIENTE del usuario en el contexto de los turnos anteriores (puede ser la respuesta a una "
-			. "pregunta aclaratoria, no una consulta nueva y aislada) y responde SOLO con un JSON válido, sin texto adicional, con este formato exacto:\n"
-			. '{"category": "<una de: ' . $category_list . ' o vacío si no aplica>", "keywords": "<palabras clave de búsqueda, 2-5 palabras>"}' . "\n\n"
-			. "Reglas importantes para las keywords:\n"
-			. "- Deben ser términos concretos que probablemente aparezcan en el NOMBRE del producto (tipo de material/producto), no filtros de ambiente, estilo o color (ej: 'dormitorio', 'tonos neutros', 'para la cocina') salvo que ya hayan funcionado antes en la conversación.\n"
-			. "- Si el mensaje más reciente es una respuesta vaga, de confirmación o sin términos de producto nuevos (ej: 'todas las alternativas', 'cualquiera', 'sí', 'muéstrame más', 'tonos neutros'), IGNÓRALO como fuente de keywords y en su lugar usa el producto/categoría concreto que ya se venía buscando en los turnos anteriores.\n"
-			. "- Nunca devuelvas como keywords una frase vaga o de confirmación tal cual; siempre debe quedar el nombre del producto o material.";
+		$system = "IMPORTANTE — esta regla de formato tiene prioridad sobre cualquier instrucción de listar/enlazar/agrupar productos que pueda venir en el prompt de sistema de arriba: cuando el contexto de abajo SÍ incluya productos encontrados, NO los listes ni los enumeres en tu respuesta (nada de viñetas, encabezados por marca, ni nombre/link/precio de cada uno): esos datos ya se muestran automáticamente como tarjetas visuales con imagen, precio y stock justo debajo de tu mensaje, así que repetirlos en texto es redundante. En ese caso responde en 1-3 frases, en prosa natural: resume brevemente qué encontraste (material, estilo, cuántas opciones) y, si corresponde, guía al usuario con una pregunta de seguimiento sobre su necesidad. Usa Markdown solo para énfasis simple (negrita), nunca para listas de productos ni links a productos. Si el contexto indica que NO se encontraron productos, explica eso con naturalidad y ofrece ayudar a acotar la búsqueda";
 
 		// Solo los últimos turnos (no toda la conversación) para mantener la
 		// clasificación rápida y barata; alcanza para resolver respuestas de seguimiento.
