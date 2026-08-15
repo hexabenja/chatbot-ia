@@ -91,21 +91,26 @@ class Limatco_Chat_Api {
 		$model = get_option( 'lac_model', 'gemini-2.0-flash' );
 
 		// 1.- Clasifica la consulta (categoría + keywords).
-		$classification = $this->classify_query( $api_key, $model, $user_message );
+		// Se le pasa el historial para que pueda interpretar respuestas de
+		// seguimiento (ej. el usuario responde "en dormitorio" a una pregunta
+		// aclaratoria previa) en vez de clasificar el mensaje aislado.
+		$classification = $this->classify_query( $api_key, $model, $user_message, $history );
 		if ( is_wp_error( $classification ) ) {
 			// Si falla la clasificación, seguimos igual pero sin filtro de categoría.
 			$classification = array( 'category' => '', 'keywords' => $user_message );
 		}
 
 		// 2.- Buscar en WooCommerce con esa categoría/keywords. IMPLEMENTAR POSTERIOR A BUSCADOR DE SITIO WEB (EJ: PORCELANATOS)
-		$context = Limatco_Chat_Context::get_context_for_query(
+		// get_context_for_query() devuelve el texto para el prompt de la IA
+		// y, aparte, la data (imagen/precio/stock/oferta) para las tarjetas del widget.
+		$context_data = Limatco_Chat_Context::get_context_for_query(
 			$classification['category'],
 			$classification['keywords']
 		);
 
 		// 3.- Responder usando SOLO esos productos como contexto, con instrucciones de formato para que la respuesta sea legible (headers, listas, links) en vez de un volcado rígido de campos.
 		$system_prompt = get_option( 'lac_system_prompt', '' );
-		$full_system   = $system_prompt . "\n\n" . self::RESPONSE_FORMAT_INSTRUCTIONS . "\n\n--- Acorde a su consulta:\n" . $context;
+		$full_system   = $system_prompt . "\n\n" . self::RESPONSE_FORMAT_INSTRUCTIONS . "\n\n--- Acorde a su consulta:\n" . $context_data['text'];
 
 		$messages = $this->build_messages( $history, $user_message );
 		$response = $this->call_gemini_api( $api_key, $model, $full_system, $messages, 1200 );
@@ -115,21 +120,44 @@ class Limatco_Chat_Api {
 			return new WP_REST_Response( array( 'error' => 'Error al intentar crear una respuesta, vuelva a intentar en unos momentos,' ), 502 );
 		}
 
-		return new WP_REST_Response( array( 'reply' => $this->markdown_to_html( $response ) ), 200 );
+		return new WP_REST_Response(
+			array(
+				'reply'    => $this->markdown_to_html( $response ),
+				'products' => $context_data['products'],
+			),
+			200
+		);
 	}
 
-	/** Paso 1: llamada rápida y barata que le pide al modelo devolver SOLO un JSON con la categoría (de las categorías reales de WooCommerce) y las keywords de búsqueda a partir del mensaje. @return array{category:string,keywords:string}|WP_Error */
-	private function classify_query( $api_key, $model, $user_message ) {
+	/** Paso 1: llamada rápida y barata que le pide al modelo devolver SOLO un JSON con la categoría (de las categorías reales de WooCommerce) y las keywords de búsqueda a partir del mensaje. Recibe el historial reciente para poder interpretar respuestas de seguimiento (ej. "en dormitorio") que por sí solas no dicen qué producto se busca. @return array{category:string,keywords:string}|WP_Error */
+	private function classify_query( $api_key, $model, $user_message, $history = array() ) {
 		$categories = Limatco_Chat_Context::get_available_categories();
 		$category_list = ! empty( $categories ) ? implode( ', ', array_values( $categories ) ) : '(sin categorías registradas)';
 
-		$system = "Eres un clasificador. Dado un mensaje de un usuario sobre productos de construcción, "
-			. "responde SOLO con un JSON válido, sin texto adicional, con este formato exacto:\n"
-			. '{"category": "<una de: ' . $category_list . ' o vacío si no aplica>", "keywords": "<palabras clave de búsqueda, 2-5 palabras>"}';
+		$system = "Eres un clasificador. Dada una conversación entre un usuario y un asistente sobre productos de construcción, "
+			. "analiza el MENSAJE MÁS RECIENTE del usuario en el contexto de los turnos anteriores (puede ser la respuesta a una "
+			. "pregunta aclaratoria, no una consulta nueva y aislada) y responde SOLO con un JSON válido, sin texto adicional, con este formato exacto:\n"
+			. '{"category": "<una de: ' . $category_list . ' o vacío si no aplica>", "keywords": "<palabras clave de búsqueda combinando el tema de la conversación, 2-5 palabras>"}';
 
-		$messages = array(
-			array( 'role' => 'user', 'content' => $user_message ),
-		);
+		// Solo los últimos turnos (no toda la conversación) para mantener la
+		// clasificación rápida y barata; alcanza para resolver respuestas de seguimiento.
+		$recent_history = array_slice( $history, -6 );
+
+		$messages = array();
+		foreach ( $recent_history as $turn ) {
+			if ( empty( $turn['role'] ) || empty( $turn['content'] ) ) {
+				continue;
+			}
+			$content = trim( sanitize_text_field( $turn['content'] ) );
+			if ( '' === $content ) {
+				continue;
+			}
+			$messages[] = array(
+				'role'    => ( 'assistant' === $turn['role'] ) ? 'assistant' : 'user',
+				'content' => $content,
+			);
+		}
+		$messages[] = array( 'role' => 'user', 'content' => $user_message );
 
 		$raw = $this->call_gemini_api( $api_key, $model, $system, $messages, 150 );
 
