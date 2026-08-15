@@ -41,6 +41,77 @@
 		return el;
 	}
 
+	// Pinta las tarjetas de producto (imagen, precio, stock, oferta) debajo del
+	// texto de la respuesta. Se arma con createElement/textContent (salvo la
+	// imagen, que va por .src) para no meter HTML sin sanitizar del catálogo.
+	function renderProductCards( products ) {
+		var container = document.createElement( 'div' );
+		container.className = 'lac-products';
+
+		products.forEach( function ( product ) {
+			var card = document.createElement( 'a' );
+			card.className = 'lac-product-card';
+			card.href = product.url || '#';
+			card.target = '_blank';
+			card.rel = 'noopener';
+
+			if ( product.on_sale ) {
+				var saleBadge = document.createElement( 'span' );
+				saleBadge.className = 'lac-badge lac-badge-sale';
+				saleBadge.textContent = 'Oferta';
+				card.appendChild( saleBadge );
+			}
+
+			var imageWrap = document.createElement( 'div' );
+			imageWrap.className = 'lac-product-image';
+			if ( product.image ) {
+				var img = document.createElement( 'img' );
+				img.src = product.image;
+				img.alt = product.name || '';
+				img.loading = 'lazy';
+				imageWrap.appendChild( img );
+			}
+			card.appendChild( imageWrap );
+
+			var info = document.createElement( 'div' );
+			info.className = 'lac-product-info';
+
+			var name = document.createElement( 'div' );
+			name.className = 'lac-product-name';
+			name.textContent = product.name || '';
+			info.appendChild( name );
+
+			var priceRow = document.createElement( 'div' );
+			priceRow.className = 'lac-product-price-row';
+
+			if ( product.on_sale && product.regular_price ) {
+				var regularPrice = document.createElement( 'span' );
+				regularPrice.className = 'lac-product-regular-price';
+				regularPrice.textContent = product.regular_price;
+				priceRow.appendChild( regularPrice );
+			}
+
+			var price = document.createElement( 'span' );
+			price.className = 'lac-product-price';
+			price.textContent = product.price || '';
+			priceRow.appendChild( price );
+
+			info.appendChild( priceRow );
+
+			var stock = document.createElement( 'span' );
+			stock.className = 'lac-badge lac-badge-stock ' + ( product.in_stock ? 'in-stock' : 'out-of-stock' );
+			stock.textContent = product.stock_text || ( product.in_stock ? 'Disponible' : 'Sin stock' );
+			info.appendChild( stock );
+
+			card.appendChild( info );
+			container.appendChild( card );
+		} );
+
+		messagesEl.appendChild( container );
+		messagesEl.scrollTop = messagesEl.scrollHeight;
+		return container;
+	}
+
 	// El nonce que viene en lacChatConfig puede estar "congelado" en HTML
 	// cacheado (Cloudflare, plugin de caché, etc.), así que en vez de usarlo
 	// directamente, se pide uno fresco a /nonce (que nunca se cachea) justo
@@ -93,6 +164,10 @@
 
 				appendMessage( 'assistant', result.data.reply );
 				history.push( { role: 'assistant', content: result.data.reply } );
+
+				if ( result.data.products && result.data.products.length ) {
+					renderProductCards( result.data.products );
+				}
 			} )
 			.catch( function () {
 				loadingEl.remove();
