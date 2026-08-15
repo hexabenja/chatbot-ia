@@ -90,11 +90,16 @@ class Limatco_Chat_Context {
 		);
 	}
 
+	// Tamaño del pool de candidatos que se trae antes de mezclar en PHP y recortar
+	// a MAX_PRODUCTS. Más grande que MAX_PRODUCTS para tener variedad real de marcas
+	// para elegir, pero acotado para no traer el catálogo completo en búsquedas amplias.
+	const SHUFFLE_POOL_SIZE = 30;
+
 	/** Ejecuta una única consulta a WooCommerce con la categoría/keywords dados (cualquiera de los dos puede venir vacío). */
 	private static function search_products( $category_slug, $keywords ) {
 		$args = array(
 			'status' => 'publish',
-			'limit'  => self::MAX_PRODUCTS,
+			'limit'  => self::SHUFFLE_POOL_SIZE,
 		);
 
 		if ( ! empty( $category_slug ) ) {
@@ -105,7 +110,20 @@ class Limatco_Chat_Context {
 			$args['s'] = $keywords;
 		}
 
-		return wc_get_products( $args );
+		$products = wc_get_products( $args );
+
+		if ( empty( $products ) ) {
+			return $products;
+		}
+
+		// Se mezcla en PHP en vez de usar 'orderby' => 'rand' en la query: ORDER BY RAND()
+		// obliga a MySQL a ordenar aleatoriamente toda la tabla de resultados antes de
+		// aplicar el límite, lo que se pone lento con catálogos grandes. Trayendo un pool
+		// ya acotado (SHUFFLE_POOL_SIZE) y mezclando en PHP se evita ese costo, y así no
+		// siempre gana la misma marca (ej. Celima) por venir primero en el orden por defecto.
+		shuffle( $products );
+
+		return array_slice( $products, 0, self::MAX_PRODUCTS );
 	}
 
 	/**
