@@ -12,6 +12,10 @@ class Limatco_Chat_Context {
 
 	const MAX_PRODUCTS = 7;
 
+	// Tamaño del pool de candidatos que se trae por cada término buscado, antes de
+	// combinar/mezclar en PHP y recortar a MAX_PRODUCTS.
+	const SHUFFLE_POOL_SIZE = 35;
+
 	/**
 	 * Devuelve la lista de categorías de producto disponibles (slug => nombre),
 	 * usada para que el paso de clasificación elija entre categorías reales.
@@ -90,13 +94,97 @@ class Limatco_Chat_Context {
 		);
 	}
 
-	// Tamaño del pool de candidatos que se trae antes de mezclar en PHP y recortar
-	// a MAX_PRODUCTS. Más grande que MAX_PRODUCTS para tener variedad real de marcas
-	// para elegir, pero acotado para no traer el catálogo completo en búsquedas amplias.
-	const SHUFFLE_POOL_SIZE = 30;
-
-	/** Ejecuta una única consulta a WooCommerce con la categoría/keywords dados (cualquiera de los dos puede venir vacío). */
+	/**
+	 * Busca en WooCommerce con la categoría/keywords dados (cualquiera de los dos
+	 * puede venir vacío). Las keywords se parten en términos individuales y se
+	 * buscan en OR (no como frase completa en AND): WordPress exige que TODAS las
+	 * palabras de 's' aparezcan para que un producto califique, así que una frase
+	 * de 2-3 palabras (ej. "interior alto tránsito") casi nunca calza completa aunque
+	 * el producto sí cumpla con cada término por separado. Se prioriza a los productos
+	 * que calzan con más términos, y se mezcla el resto para variar marcas.
+	 */
 	private static function search_products( $category_slug, $keywords ) {
+		$keywords = trim( (string) $keywords );
+
+		if ( '' === $keywords ) {
+			return self::run_single_term_query( $category_slug, '' );
+		}
+
+		$terms = self::expand_search_terms( $keywords );
+
+		if ( empty( $terms ) ) {
+			return self::run_single_term_query( $category_slug, $keywords );
+		}
+
+		$scored = array(); // id => array('product' => WC_Product, 'score' => int)
+
+		foreach ( $terms as $term ) {
+			$found = self::run_single_term_query( $category_slug, $term );
+			foreach ( $found as $product ) {
+				$id = $product->get_id();
+				if ( ! isset( $scored[ $id ] ) ) {
+					$scored[ $id ] = array(
+						'product' => $product,
+						'score'   => 0,
+					);
+				}
+				$scored[ $id ]['score']++;
+			}
+		}
+
+		if ( empty( $scored ) ) {
+			return array();
+		}
+
+		$entries = array_values( $scored );
+		// Se mezcla ANTES de ordenar por score para que los empates queden en orden
+		// aleatorio (variedad de marca) en vez de siempre en el mismo orden.
+		shuffle( $entries );
+		usort(
+			$entries,
+			function ( $a, $b ) {
+				return $b['score'] <=> $a['score'];
+			}
+		);
+
+		$products = array_map(
+			function ( $entry ) {
+				return $entry['product'];
+			},
+			$entries
+		);
+
+		return array_slice( $products, 0, self::MAX_PRODUCTS );
+	}
+
+	/**
+	 * Parte "interior alto tránsito" en ["interior", "alto", "tránsito"] y agrega,
+	 * para cada palabra que termine en "s" (plural simple en español), la versión
+	 * sin esa "s" como término adicional — así "cerámicas" (lo que suele escribir el
+	 * usuario) también encuentra productos nombrados en singular ("Cerámica ...").
+	 */
+	private static function expand_search_terms( $keywords ) {
+		$words = preg_split( '/\s+/', $keywords );
+		$words = array_filter(
+			$words,
+			function ( $word ) {
+				return mb_strlen( $word ) >= 2;
+			}
+		);
+
+		$terms = array();
+		foreach ( $words as $word ) {
+			$terms[] = $word;
+			if ( mb_strtolower( mb_substr( $word, -1 ) ) === 's' && mb_strlen( $word ) > 3 ) {
+				$terms[] = mb_substr( $word, 0, -1 );
+			}
+		}
+
+		return array_values( array_unique( $terms ) );
+	}
+
+	/** Ejecuta una única consulta a WooCommerce con la categoría/término dados (cualquiera de los dos puede venir vacío). */
+	private static function run_single_term_query( $category_slug, $term ) {
 		$args = array(
 			'status' => 'publish',
 			'limit'  => self::SHUFFLE_POOL_SIZE,
@@ -106,24 +194,11 @@ class Limatco_Chat_Context {
 			$args['category'] = array( $category_slug );
 		}
 
-		if ( ! empty( $keywords ) ) {
-			$args['s'] = $keywords;
+		if ( ! empty( $term ) ) {
+			$args['s'] = $term;
 		}
 
-		$products = wc_get_products( $args );
-
-		if ( empty( $products ) ) {
-			return $products;
-		}
-
-		// Se mezcla en PHP en vez de usar 'orderby' => 'rand' en la query: ORDER BY RAND()
-		// obliga a MySQL a ordenar aleatoriamente toda la tabla de resultados antes de
-		// aplicar el límite, lo que se pone lento con catálogos grandes. Trayendo un pool
-		// ya acotado (SHUFFLE_POOL_SIZE) y mezclando en PHP se evita ese costo, y así no
-		// siempre gana la misma marca (ej. Celima) por venir primero en el orden por defecto.
-		shuffle( $products );
-
-		return array_slice( $products, 0, self::MAX_PRODUCTS );
+		return wc_get_products( $args );
 	}
 
 	/**
