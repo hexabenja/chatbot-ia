@@ -14,6 +14,7 @@
  * 0.6.1: el clasificador ahora usa el historial reciente (respuestas de seguimiento ya no quedan sin resultados)
  * 0.6.2: precio decodificado (&#36; -> $), tarjeta rediseñada con recuadro de oferta y % de descuento, clasificador ignora respuestas vagas ("todas las alternativas", "tonos neutros") y reusa el tema ya buscado
  * 0.6.3: el texto de la respuesta ya no repite el listado de productos (las tarjetas se bastan solas); orden de resultados aleatorizado con shuffle() en PHP (no ORDER BY RAND()) para no favorecer siempre la misma marca
+ * 0.6.4: búsqueda por término individual en OR (antes exigía la frase completa en AND) + fallback plural->singular; el clasificador mapea dormitorio/living/cocina/baño->interior y terraza/patio->exterior, que sí están en las descripciones
 */
 
 
@@ -23,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'LAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LAC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'LAC_VERSION', '0.4.3' );
+define( 'LAC_VERSION', '0.4.4' );
 
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-admin.php';
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-api.php';
