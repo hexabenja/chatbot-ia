@@ -14,7 +14,7 @@ class Limatco_Chat_Context {
 
 	// Tamaño del pool de candidatos que se trae por cada término buscado, antes de
 	// combinar/mezclar en PHP y recortar a MAX_PRODUCTS.
-	const SHUFFLE_POOL_SIZE = 35;
+	const SHUFFLE_POOL_SIZE = 30;
 
 	/**
 	 * Devuelve la lista de categorías de producto disponibles (slug => nombre),
@@ -107,7 +107,15 @@ class Limatco_Chat_Context {
 		$keywords = trim( (string) $keywords );
 
 		if ( '' === $keywords ) {
-			return self::run_single_term_query( $category_slug, '' );
+			$products = self::run_single_term_query( $category_slug, '' );
+			if ( empty( $products ) ) {
+				return $products;
+			}
+			// Mismo tratamiento que el resto: mezclar (variedad de marca) y recortar
+			// a MAX_PRODUCTS. Sin esto, una categoría/keywords vacías devolvía hasta
+			// SHUFFLE_POOL_SIZE productos sin filtrar (ej. el bug de "hola" -> 30+ productos).
+			shuffle( $products );
+			return array_slice( $products, 0, self::MAX_PRODUCTS );
 		}
 
 		$terms = self::expand_search_terms( $keywords );
