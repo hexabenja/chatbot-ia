@@ -90,23 +90,33 @@ class Limatco_Chat_Api {
 
 		$model = get_option( 'lac_model', 'gemini-2.0-flash' );
 
-		// 1.- Clasifica la consulta (categoría + keywords).
+		// 1.- Clasifica la consulta (categoría + keywords + si corresponde buscar productos).
 		// Se le pasa el historial para que pueda interpretar respuestas de
 		// seguimiento (ej. el usuario responde "en dormitorio" a una pregunta
 		// aclaratoria previa) en vez de clasificar el mensaje aislado.
 		$classification = $this->classify_query( $api_key, $model, $user_message, $history );
 		if ( is_wp_error( $classification ) ) {
 			// Si falla la clasificación, seguimos igual pero sin filtro de categoría.
-			$classification = array( 'category' => '', 'keywords' => $user_message );
+			$classification = array( 'category' => '', 'keywords' => $user_message, 'needs_search' => true );
 		}
 
-		// 2.- Buscar en WooCommerce con esa categoría/keywords. IMPLEMENTAR POSTERIOR A BUSCADOR DE SITIO WEB (EJ: PORCELANATOS)
-		// get_context_for_query() devuelve el texto para el prompt de la IA
-		// y, aparte, la data (imagen/precio/stock/oferta) para las tarjetas del widget.
-		$context_data = Limatco_Chat_Context::get_context_for_query(
-			$classification['category'],
-			$classification['keywords']
-		);
+		// 2.- Buscar en WooCommerce con esa categoría/keywords SOLO si el mensaje es
+		// realmente sobre productos. Si no (ej. "hola", "gracias"), evitamos la búsqueda:
+		// con categoría/keywords vacías la cascada terminaba trayendo productos al azar
+		// del catálogo para un simple saludo.
+		if ( ! empty( $classification['needs_search'] ) ) {
+			// get_context_for_query() devuelve el texto para el prompt de la IA
+			// y, aparte, la data (imagen/precio/stock/oferta) para las tarjetas del widget.
+			$context_data = Limatco_Chat_Context::get_context_for_query(
+				$classification['category'],
+				$classification['keywords']
+			);
+		} else {
+			$context_data = array(
+				'text'     => 'El usuario no está buscando un producto en este mensaje (ej. saludo, agradecimiento u otro comentario). No muestres ni menciones productos; responde solo de forma natural a lo que dijo.',
+				'products' => array(),
+			);
+		}
 
 		// 3.- Responder usando SOLO esos productos como contexto, con instrucciones de formato para que la respuesta sea legible (headers, listas, links) en vez de un volcado rígido de campos.
 		$system_prompt = get_option( 'lac_system_prompt', '' );
@@ -129,7 +139,7 @@ class Limatco_Chat_Api {
 		);
 	}
 
-	/** Paso 1: llamada rápida y barata que le pide al modelo devolver SOLO un JSON con la categoría (de las categorías reales de WooCommerce) y las keywords de búsqueda a partir del mensaje. Recibe el historial reciente para poder interpretar respuestas de seguimiento (ej. "en dormitorio") que por sí solas no dicen qué producto se busca. @return array{category:string,keywords:string}|WP_Error */
+	/** Paso 1: llamada rápida y barata que le pide al modelo devolver SOLO un JSON con la categoría (de las categorías reales de WooCommerce), las keywords de búsqueda y si el mensaje amerita buscar productos (needs_search), a partir del mensaje. Recibe el historial reciente para poder interpretar respuestas de seguimiento (ej. "en dormitorio") que por sí solas no dicen qué producto se busca. @return array{category:string,keywords:string,needs_search:bool}|WP_Error */
 	private function classify_query( $api_key, $model, $user_message, $history = array() ) {
 		$categories = Limatco_Chat_Context::get_available_categories();
 		$category_list = ! empty( $categories ) ? implode( ', ', array_values( $categories ) ) : '(sin categorías registradas)';
@@ -137,7 +147,8 @@ class Limatco_Chat_Api {
 		$system = "Eres un clasificador. Dada una conversación entre un usuario y un asistente sobre productos de construcción, "
 			. "analiza el MENSAJE MÁS RECIENTE del usuario en el contexto de los turnos anteriores (puede ser la respuesta a una "
 			. "pregunta aclaratoria, no una consulta nueva y aislada) y responde SOLO con un JSON válido, sin texto adicional, con este formato exacto:\n"
-			. '{"category": "<una de: ' . $category_list . ' o vacío si no aplica>", "keywords": "<palabras clave de búsqueda, 2-5 palabras>"}' . "\n\n"
+			. '{"category": "<una de: ' . $category_list . ' o vacío si no aplica>", "keywords": "<palabras clave de búsqueda, 2-5 palabras>", "needs_search": <true o false>}' . "\n\n"
+			. "'needs_search' debe ser false SOLO si el mensaje NO es sobre productos/materiales/servicios de Limatco (ej: saludos como 'hola', agradecimientos, despedidas, small talk, preguntas sobre el chatbot mismo). En cualquier caso donde el usuario esté buscando, preguntando o respondiendo sobre un producto (incluyendo respuestas de seguimiento vagas tipo 'todas las alternativas'), needs_search debe ser true. Si needs_search es false, category y keywords deben ir vacíos (\"\").\n\n"
 			. "Reglas importantes para las keywords:\n"
 			. "- Cada keyword debe ser un término que probablemente aparezca LITERAL en el nombre o la descripción del producto. Se buscan por separado (no como frase exacta), así que agrega solo términos que realmente aporten.\n"
 			. "- Términos de ambiente/habitación (dormitorio, living, sala, pieza, cocina, baño) NO existen como tal en las descripciones: NUNCA los uses como keyword. En su lugar, tradúcelos así:\n"
@@ -187,8 +198,9 @@ class Limatco_Chat_Api {
 		$slug = array_search( $category_name, $categories, true );
 
 		return array(
-			'category' => $slug ? $slug : '',
-			'keywords' => $keywords,
+			'category'     => $slug ? $slug : '',
+			'keywords'     => $keywords,
+			'needs_search' => ! isset( $json['needs_search'] ) || (bool) $json['needs_search'],
 		);
 	}
 
