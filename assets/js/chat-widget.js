@@ -81,10 +81,14 @@
 			name.textContent = product.name || '';
 			info.appendChild( name );
 
-			var stock = document.createElement( 'span' );
-			stock.className = 'lac-badge lac-badge-stock ' + ( product.in_stock ? 'in-stock' : 'out-of-stock' );
-			stock.textContent = product.stock_text || ( product.in_stock ? 'Disponible' : 'Sin stock' );
-			info.appendChild( stock );
+			// Solo se muestra el badge cuando NO hay stock; si está disponible no se
+			// pinta nada (menos ruido visual en la tarjeta).
+			if ( ! product.in_stock ) {
+				var stock = document.createElement( 'span' );
+				stock.className = 'lac-badge lac-badge-stock out-of-stock';
+				stock.textContent = product.stock_text || 'Sin stock';
+				info.appendChild( stock );
+			}
 
 			var price = document.createElement( 'div' );
 			price.className = 'lac-product-price';
