@@ -16,6 +16,7 @@
  * 0.6.3: el texto de la respuesta ya no repite el listado de productos (las tarjetas se bastan solas); orden de resultados aleatorizado con shuffle() en PHP (no ORDER BY RAND()) para no favorecer siempre la misma marca
  * 0.6.4: búsqueda por término individual en OR (antes exigía la frase completa en AND) + fallback plural->singular; el clasificador mapea dormitorio/living/cocina/baño->interior y terraza/patio->exterior, que sí están en las descripciones
  * 0.6.5: fix: saludos ("hola") ya no traían productos al azar (faltaba recortar a MAX_PRODUCTS en el camino de keywords vacías); el clasificador ahora decide needs_search y se salta la búsqueda por completo si el mensaje no es sobre productos
+ * 0.6.6: la tarjeta muestra la marca (taxonomía product_brand de WooCommerce) arriba del nombre, 9px, mayúscula
 */
 
 
@@ -25,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'LAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LAC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'LAC_VERSION', '0.4.5' );
+define( 'LAC_VERSION', '0.4.6' );
 
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-admin.php';
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-api.php';
