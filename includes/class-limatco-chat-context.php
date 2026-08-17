@@ -276,13 +276,9 @@ class Limatco_Chat_Context {
 	}
 
 	/**
-	 * Lee la marca desde la taxonomía de marca de WooCommerce (la "casilla de Marca"
-	 * del producto), no desde la descripción. Se prueban varios slugs de taxonomía
-	 * porque varía según cómo esté configurado el sitio:
-	 * 'product_brand' es el feature nativo de WooCommerce (desde WC 8.3); 'pwb-brand'
-	 * y 'yith_product_brand' son de plugins de marca comunes. Si en tu sitio la marca
-	 * no aparece en la tarjeta, revisa en wp-admin → Productos → Marcas cuál es el slug
-	 * real (aparece en la URL de esa pantalla) y avísame para ajustarlo.
+	 * Lee la marca desde la taxonomía de marca de WooCommerce, esto es para las tarjetas de productos.
+	 * 'product_brand' es el feature nativo de WooCommerce
+	 * 'pwb-brand' y 'yith_product_brand' son de plugins de marca comunes.
 	 */
 	private static function get_product_brand( $product ) {
 		$brand_taxonomies = array( 'product_brand', 'pwb-brand', 'yith_product_brand' );
