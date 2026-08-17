@@ -150,6 +150,15 @@
 	gap: 5px;
 }
 
+.lac-product-brand {
+	font-size: 9px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: #8a8a8a;
+	margin-bottom: -2px;
+}
+
 .lac-product-name {
 	font-size: 13px;
 	font-weight: 600;
