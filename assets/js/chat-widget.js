@@ -69,6 +69,13 @@
 			var info = document.createElement( 'div' );
 			info.className = 'lac-product-info';
 
+			if ( product.brand ) {
+				var brand = document.createElement( 'div' );
+				brand.className = 'lac-product-brand';
+				brand.textContent = product.brand;
+				info.appendChild( brand );
+			}
+
 			var name = document.createElement( 'div' );
 			name.className = 'lac-product-name';
 			name.textContent = product.name || '';
