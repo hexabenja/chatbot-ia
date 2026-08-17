@@ -261,6 +261,7 @@ class Limatco_Chat_Context {
 		return array(
 			'id'                => $product->get_id(),
 			'name'              => $product->get_name(),
+			'brand'             => self::get_product_brand( $product ),
 			'image'             => $image_url,
 			'url'               => get_permalink( $product->get_id() ),
 			// wc_price() devuelve el símbolo de moneda como entidad HTML (&#36;);
@@ -272,5 +273,30 @@ class Limatco_Chat_Context {
 			'in_stock'          => $product->is_in_stock(),
 			'stock_text'        => $product->is_in_stock() ? 'Disponible' : 'Sin stock',
 		);
+	}
+
+	/**
+	 * Lee la marca desde la taxonomía de marca de WooCommerce (la "casilla de Marca"
+	 * del producto), no desde la descripción. Se prueban varios slugs de taxonomía
+	 * porque varía según cómo esté configurado el sitio:
+	 * 'product_brand' es el feature nativo de WooCommerce (desde WC 8.3); 'pwb-brand'
+	 * y 'yith_product_brand' son de plugins de marca comunes. Si en tu sitio la marca
+	 * no aparece en la tarjeta, revisa en wp-admin → Productos → Marcas cuál es el slug
+	 * real (aparece en la URL de esa pantalla) y avísame para ajustarlo.
+	 */
+	private static function get_product_brand( $product ) {
+		$brand_taxonomies = array( 'product_brand', 'pwb-brand', 'yith_product_brand' );
+
+		foreach ( $brand_taxonomies as $taxonomy ) {
+			if ( ! taxonomy_exists( $taxonomy ) ) {
+				continue;
+			}
+			$terms = get_the_terms( $product->get_id(), $taxonomy );
+			if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+				return $terms[0]->name;
+			}
+		}
+
+		return '';
 	}
 }
