@@ -14,7 +14,7 @@ class Limatco_Chat_Api {
 	const RESPONSE_FORMAT_INSTRUCTIONS = "IMPORTANTE — esta regla de formato tiene prioridad sobre cualquier instrucción de listar/enlazar/agrupar productos que pueda venir en el prompt de sistema de arriba: cuando el contexto de abajo SÍ incluya productos encontrados, NO los listes ni los enumeres en tu respuesta (nada de viñetas, encabezados por marca, ni nombre/link/precio de cada uno): esos datos ya se muestran automáticamente como tarjetas visuales con imagen, precio y stock justo debajo de tu mensaje, así que repetirlos en texto es redundante. En ese caso responde en 1-3 frases, en prosa natural: resume brevemente qué encontraste (material, estilo, cuántas opciones) y, si corresponde, guía al usuario con una pregunta de seguimiento sobre su necesidad. Usa Markdown solo para énfasis simple (negrita), nunca para listas de productos ni links a productos. Si el contexto indica que NO se encontraron productos, explica eso con naturalidad y ofrece ayudar a acotar la búsqueda.";
 
 	// Respuesta fija cuando el usuario quiere contactar a un ejecutivo/central de cotizaciones.
-	const PHONE_REPLY = "Si deseas recibir ayuda con un ejecutivo, llama a este número, directo a nuestra central de cotizaciones: [+56 2 2938 1410](tel:229381410)";
+	const PHONE_REPLY = "Si deseas recibir ayuda con un ejecutivo, llama a este número, directo a nuestra central de cotizaciones: +56 2 2938 1410 [Haz clic para llamar a Central de Cotizaciones](tel:229381410)";
 
 	// Contexto de sucursales (dirección, teléfonos, horarios). Se inyecta en el prompt
 	// SOLO cuando el mensaje parece preguntar por sucursales/horarios/contacto (ver
