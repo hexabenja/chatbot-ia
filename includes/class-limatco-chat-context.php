@@ -194,8 +194,15 @@ class Limatco_Chat_Context {
 	/** Ejecuta una única consulta a WooCommerce con la categoría/término dados (cualquiera de los dos puede venir vacío). */
 	private static function run_single_term_query( $category_slug, $term ) {
 		$args = array(
-			'status' => 'publish',
-			'limit'  => self::SHUFFLE_POOL_SIZE,
+			'status'  => 'publish',
+			'limit'   => self::SHUFFLE_POOL_SIZE,
+			// 'orderby' => 'rand' aquí (no solo shuffle() después) es lo que de verdad varía
+			// qué productos entran al pool: sin esto, WooCommerce siempre trae el mismo
+			// top-N por fecha para un mismo término, y el shuffle() posterior solo mezcla
+			// el ORDEN de ese mismo grupo fijo — por eso seguían saliendo los mismos productos.
+			// Con ~300 productos en el catálogo, el costo de ORDER BY RAND() es despreciable;
+			// si el catálogo crece a varios miles, esto habría que revisitarlo.
+			'orderby' => 'rand',
 		);
 
 		if ( ! empty( $category_slug ) ) {
@@ -275,10 +282,14 @@ class Limatco_Chat_Context {
 		);
 	}
 
-	//**
-	 * Lee la marca desde la taxonomía de marca de WooCommerce, esto es para las tarjetas de productos.
-	 * 'product_brand' es el feature nativo de WooCommerce
-	 * 'pwb-brand' y 'yith_product_brand' son de plugins de marca comunes.
+	/**
+	 * Lee la marca desde la taxonomía de marca de WooCommerce (la "casilla de Marca"
+	 * del producto), no desde la descripción. Se prueban varios slugs de taxonomía
+	 * porque varía según cómo esté configurado el sitio:
+	 * 'product_brand' es el feature nativo de WooCommerce (desde WC 8.3); 'pwb-brand'
+	 * y 'yith_product_brand' son de plugins de marca comunes. Si en tu sitio la marca
+	 * no aparece en la tarjeta, revisa en wp-admin → Productos → Marcas cuál es el slug
+	 * real (aparece en la URL de esa pantalla) y avísame para ajustarlo.
 	 */
 	private static function get_product_brand( $product ) {
 		$brand_taxonomies = array( 'product_brand', 'pwb-brand', 'yith_product_brand' );
