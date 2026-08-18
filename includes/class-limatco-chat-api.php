@@ -16,9 +16,12 @@ class Limatco_Chat_Api {
 	// Respuesta fija cuando el usuario quiere contactar a un ejecutivo/central de cotizaciones.
 	const PHONE_REPLY = "Si deseas recibir ayuda con un ejecutivo, llama a este número, directo a nuestra central de cotizaciones: [+56 2 2938 1410](tel:229381410)";
 
-	// Respuesta fija con el listado de sucursales (no depende de la IA para no arriesgar que
-	// invente o desactualice direcciones).
-	const BRANCHES_REPLY = "Nuestras sucursales Limatco atienden en toda la región Metropolitana, la lista de nuestras sucursales son:\n\n[Sucursal Independencia](https://limatco.cl/sucursal-independencia/) ubicada en: Coronel Agustín López de Alcázar 546, Independencia\nSucursal de Central Cotizaciones\n[+56 2 2938 1410](tel:229381410)\n[Sucursal Vespucio Sur](https://limatco.cl/sucursal-vespucio-sur/) ubicada en: Av. Américo Vespucio 4288.\n[Sucursal Manquehue sur](https://limatco.cl/sucursal-manquehue-sur/) ubicada en: Manquehue Sur 676\n[Sucursal San Miguel](https://limatco.cl/sucursal-san-miguel/) ubicada en: Gran Avenida 4559\n[Sucursal Puente Alto](https://limatco.cl/sucursal-puente-alto/) ubicada en: Eyzaguirre 077, esquina Balmaceda\n[Sucursal Maipú](https://limatco.cl/sucursal-maipu/) ubicada en: Libertador Gral. Bernardo O'Higgins 10 (esquina Pajaritos)\n[Sucursal San Bernardo](https://limatco.cl/sucursal-san-bernardo/) ubicada en: Barros Arana 796\n[Sucursal Las Condes](https://limatco.cl/sucursal-lascondes/) ubicada en: Av. Las Condes 12803, Centro Comercial Portal la Cabaña\n[Sucursal Talagante](https://limatco.cl/sucursal-talagante/) ubicada en: Av. Bernardo O'Higgins 0225 (referencia Volcán Llaima 799)\n[Sucursal Chicureo](https://limatco.cl/sucursal-chicureo/) ubicada en: Carretera General San Martín 6000, Local 119\n[Sucursal Padre Hurtado](https://limatco.cl/sucursal-padre-hurtado/) ubicada en: Calle San Ignacio N° 1624, Locales 18 y 19, Centro Comercial Laguna del Sol";
+	// Contexto de sucursales (dirección, teléfonos, horarios). Se inyecta en el prompt
+	// SOLO cuando el mensaje parece preguntar por sucursales/horarios/contacto (ver
+	// is_branches_query()), para no gastar tokens de más en cada mensaje. La IA responde
+	// de forma natural y específica a lo que se le pregunte (ej. el teléfono de una sola
+	// sucursal), en vez de devolver siempre el mismo texto completo sin importar la pregunta.
+	const BRANCHES_CONTEXT = "[Sucursal Independencia](https://limatco.cl/sucursal-independencia/) ubicada en: Coronel Agustín López de Alcázar 546, Independencia\nSala de Ventas\n+56 2 2637 5566\n+56 2 2637 5500\n+56 2 2716 4650\n+56 5 7276 9342\nSucursal de Central Cotizaciones\n+56 2 2938 1410\nHorario de Atención\nLunes a Viernes 9:00 - 19:00 Hrs\nSábado 9:00 - 14:00 Hrs.\n\n[Sucursal Vespucio Sur](https://limatco.cl/sucursal-vespucio-sur/) ubicada en: Av. Américo Vespucio 4288\nVentas\n+56 2 2221 1030\n+56 2 2221 1656\nAtención a clientes\n+56 2 2221 2477\n+56 2 2711 7603\n+56 6 5275 8446\nHorario de Atención\nLunes a Viernes 09:00 - 19:00 Hrs.\nSábado 09:00 - 14:00 Hrs.\n\n[Sucursal Manquehue sur](https://limatco.cl/sucursal-manquehue-sur/) ubicada en: Manquehue Sur 676\nVentas\n+56 2 2342 2481\n+56 2 2298 5739\n+56 9 6407 2969\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal San Miguel](https://limatco.cl/sucursal-san-miguel/) ubicada en: Gran Avenida 4559\nVentas\n+56 2 2324 5681\n+56 9 6520 2999\n+56 9 5333 4007\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Puente Alto](https://limatco.cl/sucursal-puente-alto/) ubicada en: Eyzaguirre 077, esquina Balmaceda\nVentas\n+56 2 2493 1506\n+56 9 8527 5859\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Maipú](https://limatco.cl/sucursal-maipu/) ubicada en: Libertador Gral. Bernardo O'Higgins 10 (esquina Pajaritos)\nVentas\n+56 2 2458 0935\n+56 2 2418 0613\n+56 9 7430 0982\n+56 9 6495 4936\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal San Bernardo](https://limatco.cl/sucursal-san-bernardo/) ubicada en: Barros Arana 796\nVentas\n+56 2 2859 1103\n+56 9 8500 7033\n+56 5 7276 2920\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Las Condes](https://limatco.cl/sucursal-lascondes/) ubicada en: Av. Las Condes 12803, Centro Comercial Portal la Cabaña\nVentas\n+56 2 3280 0371\nAtención a clientes\n+56 2 3280 0391\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Talagante](https://limatco.cl/sucursal-talagante/) ubicada en: Av. Bernardo O'Higgins 0225 (referencia Volcán Llaima 799)\nVentas\n+56 2 2938 1377\n+56 9 6159 8807\n+56 9 6354 6171\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Chicureo](https://limatco.cl/sucursal-chicureo/) ubicada en: Carretera General San Martín 6000, Local 119\nVentas\n+56 2 2733 5911\n+56 2 2733 5910\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Padre Hurtado](https://limatco.cl/sucursal-padre-hurtado/) ubicada en: Calle San Ignacio N° 1624, Locales 18 y 19, Centro Comercial Laguna del Sol\nVentas\n+56 9 9634 6019\n+56 9 9733 1068\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.";
 
 	public function __construct() {
 		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
@@ -89,10 +92,11 @@ class Limatco_Chat_Api {
 			$history = array();
 		}
 
-		// Respuestas fijas para intenciones puntuales (contacto telefónico, sucursales):
-		// se resuelven ANTES de tocar la IA, así no dependen de que el modelo las
-		// interprete bien cada vez, y no gastan tokens de la API en algo que siempre
-		// debe responder exactamente lo mismo.
+		// Respuesta fija para contacto telefónico/ejecutivo: se resuelve ANTES de tocar la
+		// IA, así no depende de que el modelo la interprete bien cada vez, y no gasta tokens
+		// de la API en algo que siempre debe responder exactamente lo mismo. Las preguntas de
+		// sucursales, en cambio, SÍ pasan por la IA (ver $is_branches_query más abajo), porque
+		// ahí conviene una respuesta específica a lo preguntado, no un texto fijo siempre igual.
 		$hardcoded_reply = $this->check_hardcoded_reply( $user_message );
 		if ( null !== $hardcoded_reply ) {
 			return new WP_REST_Response(
@@ -122,11 +126,13 @@ class Limatco_Chat_Api {
 			$classification = array( 'category' => '', 'keywords' => $user_message, 'needs_search' => true );
 		}
 
+		$is_branches_query = $this->is_branches_query( $user_message );
+
 		// 2.- Buscar en WooCommerce con esa categoría/keywords SOLO si el mensaje es
-		// realmente sobre productos. Si no (ej. "hola", "gracias"), evitamos la búsqueda:
-		// con categoría/keywords vacías la cascada terminaba trayendo productos al azar
-		// del catálogo para un simple saludo.
-		if ( ! empty( $classification['needs_search'] ) ) {
+		// realmente sobre productos. Si no (ej. "hola", "gracias", o una pregunta de
+		// sucursales/horarios), evitamos la búsqueda: con categoría/keywords vacías la
+		// cascada terminaba trayendo productos al azar del catálogo para un simple saludo.
+		if ( ! empty( $classification['needs_search'] ) && ! $is_branches_query ) {
 			// get_context_for_query() devuelve el texto para el prompt de la IA
 			// y, aparte, la data (imagen/precio/stock/oferta) para las tarjetas del widget.
 			$context_data = Limatco_Chat_Context::get_context_for_query(
@@ -135,7 +141,7 @@ class Limatco_Chat_Api {
 			);
 		} else {
 			$context_data = array(
-				'text'     => 'El usuario no está buscando un producto en este mensaje (ej. saludo, agradecimiento u otro comentario). No muestres ni menciones productos; responde solo de forma natural a lo que dijo.',
+				'text'     => 'El usuario no está buscando un producto en este mensaje (ej. saludo, agradecimiento, pregunta de sucursales/horarios u otro comentario). No muestres ni menciones productos; responde solo de forma natural a lo que dijo.',
 				'products' => array(),
 			);
 		}
@@ -143,6 +149,13 @@ class Limatco_Chat_Api {
 		// 3.- Responder usando SOLO esos productos como contexto, con instrucciones de formato para que la respuesta sea legible (headers, listas, links) en vez de un volcado rígido de campos.
 		$system_prompt = get_option( 'lac_system_prompt', '' );
 		$full_system   = $system_prompt . "\n\n" . self::RESPONSE_FORMAT_INSTRUCTIONS . "\n\n--- Acorde a su consulta:\n" . $context_data['text'];
+
+		// Se agrega SOLO si la pregunta parece ser de sucursales/horarios/contacto, para no
+		// gastar tokens de más en cada mensaje. La IA responde específicamente a lo que se
+		// preguntó (ej. el horario de una sola sucursal) usando este contexto, no un texto fijo.
+		if ( $is_branches_query ) {
+			$full_system .= "\n\n--- Información de sucursales (dirección, teléfonos, horario). Responde solo con lo que se pregunte, no vuelques todo el listado salvo que el usuario pida ver todas las sucursales:\n" . self::BRANCHES_CONTEXT;
+		}
 
 		$messages = $this->build_messages( $history, $user_message );
 		$response = $this->call_gemini_api( $api_key, $model, $full_system, $messages, 1200 );
@@ -363,10 +376,10 @@ class Limatco_Chat_Api {
 	}
 
 	/**
-	 * Detecta intenciones fijas (contacto telefónico, sucursales) por palabras clave,
+	 * Detecta la intención fija de contacto telefónico/ejecutivo por palabras clave,
 	 * sin pasar por la IA. Se normaliza a minúsculas y sin tildes para que coincida
 	 * sin importar cómo lo escriba el usuario. Devuelve el texto (Markdown) de la
-	 * respuesta fija, o null si el mensaje no calza con ninguna.
+	 * respuesta fija, o null si el mensaje no calza.
 	 */
 	private function check_hardcoded_reply( $user_message ) {
 		$normalized = strtolower( remove_accents( $user_message ) );
@@ -387,21 +400,41 @@ class Limatco_Chat_Api {
 			}
 		}
 
+		return null;
+	}
+
+	/**
+	 * Detecta si el mensaje parece preguntar por sucursales, direcciones, horarios de
+	 * atención o contacto de una tienda en particular. A diferencia de check_hardcoded_reply(),
+	 * esto NO devuelve una respuesta fija: solo decide si se agrega BRANCHES_CONTEXT al
+	 * prompt para que la IA responda específicamente a lo que se preguntó (ej. el horario
+	 * de una sola sucursal), en vez de un texto rígido siempre igual.
+	 */
+	private function is_branches_query( $user_message ) {
+		$normalized = strtolower( remove_accents( $user_message ) );
+
 		$branch_triggers = array(
-			'ubicaciones de sucursales',
-			'ubicacion de sucursales',
-			'direccion de sucursales',
-			'direcciones de sucursales',
-			'sucursales',
 			'sucursal',
+			'sucursales',
+			'direccion',
+			'direcciones',
+			'ubicacion',
+			'ubicaciones',
+			'donde queda',
+			'donde estan',
+			'donde estan ubicados',
+			'horario de atencion',
+			'horarios de atencion',
+			'a que hora abren',
+			'a que hora cierran',
 		);
 		foreach ( $branch_triggers as $trigger ) {
 			if ( false !== strpos( $normalized, $trigger ) ) {
-				return self::BRANCHES_REPLY;
+				return true;
 			}
 		}
 
-		return null;
+		return false;
 	}
 
 	private function check_rate_limit() {
