@@ -13,6 +13,13 @@ class Limatco_Chat_Api {
 	// Instrucciones de formato para la respuesta final (no para la clasificación). Se agregan al prompt de sistema junto con el contexto de productos.
 	const RESPONSE_FORMAT_INSTRUCTIONS = "IMPORTANTE — esta regla de formato tiene prioridad sobre cualquier instrucción de listar/enlazar/agrupar productos que pueda venir en el prompt de sistema de arriba: cuando el contexto de abajo SÍ incluya productos encontrados, NO los listes ni los enumeres en tu respuesta (nada de viñetas, encabezados por marca, ni nombre/link/precio de cada uno): esos datos ya se muestran automáticamente como tarjetas visuales con imagen, precio y stock justo debajo de tu mensaje, así que repetirlos en texto es redundante. En ese caso responde en 1-3 frases, en prosa natural: resume brevemente qué encontraste (material, estilo, cuántas opciones) y, si corresponde, guía al usuario con una pregunta de seguimiento sobre su necesidad. Usa Markdown solo para énfasis simple (negrita), nunca para listas de productos ni links a productos. Si el contexto indica que NO se encontraron productos, explica eso con naturalidad y ofrece ayudar a acotar la búsqueda.";
 
+	// Respuesta fija cuando el usuario quiere contactar a un ejecutivo/central de cotizaciones.
+	const PHONE_REPLY = "Si deseas recibir ayuda con un ejecutivo, llama a este número, directo a nuestra central de cotizaciones: [+56 2 2938 1410](tel:229381410)";
+
+	// Respuesta fija con el listado de sucursales (no depende de la IA para no arriesgar que
+	// invente o desactualice direcciones).
+	const BRANCHES_REPLY = "Nuestras sucursales Limatco atienden en toda la región Metropolitana, la lista de nuestras sucursales son:\n\n[Sucursal Independencia](https://limatco.cl/sucursal-independencia/) ubicada en: Coronel Agustín López de Alcázar 546, Independencia\nSucursal de Central Cotizaciones\n[+56 2 2938 1410](tel:229381410)\n[Sucursal Vespucio Sur](https://limatco.cl/sucursal-vespucio-sur/) ubicada en: Av. Américo Vespucio 4288.\n[Sucursal Manquehue sur](https://limatco.cl/sucursal-manquehue-sur/) ubicada en: Manquehue Sur 676\n[Sucursal San Miguel](https://limatco.cl/sucursal-san-miguel/) ubicada en: Gran Avenida 4559\n[Sucursal Puente Alto](https://limatco.cl/sucursal-puente-alto/) ubicada en: Eyzaguirre 077, esquina Balmaceda\n[Sucursal Maipú](https://limatco.cl/sucursal-maipu/) ubicada en: Libertador Gral. Bernardo O'Higgins 10 (esquina Pajaritos)\n[Sucursal San Bernardo](https://limatco.cl/sucursal-san-bernardo/) ubicada en: Barros Arana 796\n[Sucursal Las Condes](https://limatco.cl/sucursal-lascondes/) ubicada en: Av. Las Condes 12803, Centro Comercial Portal la Cabaña\n[Sucursal Talagante](https://limatco.cl/sucursal-talagante/) ubicada en: Av. Bernardo O'Higgins 0225 (referencia Volcán Llaima 799)\n[Sucursal Chicureo](https://limatco.cl/sucursal-chicureo/) ubicada en: Carretera General San Martín 6000, Local 119\n[Sucursal Padre Hurtado](https://limatco.cl/sucursal-padre-hurtado/) ubicada en: Calle San Ignacio N° 1624, Locales 18 y 19, Centro Comercial Laguna del Sol";
+
 	public function __construct() {
 		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
 	}
@@ -80,6 +87,21 @@ class Limatco_Chat_Api {
 		$history = $request->get_param( 'history' );
 		if ( ! is_array( $history ) ) {
 			$history = array();
+		}
+
+		// Respuestas fijas para intenciones puntuales (contacto telefónico, sucursales):
+		// se resuelven ANTES de tocar la IA, así no dependen de que el modelo las
+		// interprete bien cada vez, y no gastan tokens de la API en algo que siempre
+		// debe responder exactamente lo mismo.
+		$hardcoded_reply = $this->check_hardcoded_reply( $user_message );
+		if ( null !== $hardcoded_reply ) {
+			return new WP_REST_Response(
+				array(
+					'reply'    => $this->markdown_to_html( $hardcoded_reply ),
+					'products' => array(),
+				),
+				200
+			);
 		}
 
 		$api_key = get_option( 'lac_api_key', '' );
@@ -338,6 +360,48 @@ class Limatco_Chat_Api {
 		}
 
 		return $text;
+	}
+
+	/**
+	 * Detecta intenciones fijas (contacto telefónico, sucursales) por palabras clave,
+	 * sin pasar por la IA. Se normaliza a minúsculas y sin tildes para que coincida
+	 * sin importar cómo lo escriba el usuario. Devuelve el texto (Markdown) de la
+	 * respuesta fija, o null si el mensaje no calza con ninguna.
+	 */
+	private function check_hardcoded_reply( $user_message ) {
+		$normalized = strtolower( remove_accents( $user_message ) );
+
+		$phone_triggers = array(
+			'central cotizaciones',
+			'comunicarme con un ejecutivo',
+			'hablar con un ejecutivo',
+			'contactar a un ejecutivo',
+			'llamada',
+			'telefono',
+			'numero telefonico',
+			'numero de telefono',
+		);
+		foreach ( $phone_triggers as $trigger ) {
+			if ( false !== strpos( $normalized, $trigger ) ) {
+				return self::PHONE_REPLY;
+			}
+		}
+
+		$branch_triggers = array(
+			'ubicaciones de sucursales',
+			'ubicacion de sucursales',
+			'direccion de sucursales',
+			'direcciones de sucursales',
+			'sucursales',
+			'sucursal',
+		);
+		foreach ( $branch_triggers as $trigger ) {
+			if ( false !== strpos( $normalized, $trigger ) ) {
+				return self::BRANCHES_REPLY;
+			}
+		}
+
+		return null;
 	}
 
 	private function check_rate_limit() {
