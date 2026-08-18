@@ -275,7 +275,7 @@ class Limatco_Chat_Context {
 		);
 	}
 
-	/**
+	//**
 	 * Lee la marca desde la taxonomía de marca de WooCommerce, esto es para las tarjetas de productos.
 	 * 'product_brand' es el feature nativo de WooCommerce
 	 * 'pwb-brand' y 'yith_product_brand' son de plugins de marca comunes.
