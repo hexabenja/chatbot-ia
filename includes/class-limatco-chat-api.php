@@ -194,6 +194,7 @@ class Limatco_Chat_Api {
 			. "- No inventes ni agregues color/tono/estilo como keyword salvo que el usuario haya dado un término muy específico y ya haya funcionado antes en la conversación.\n"
 			. "- Si el mensaje más reciente es una respuesta vaga, de confirmación o sin términos nuevos (ej: 'todas las alternativas', 'cualquiera', 'sí', 'muéstrame más', 'recomiéndame'), IGNÓRALO como fuente de keywords y en su lugar usa el producto/categoría/ambiente concreto que ya se venía buscando en los turnos anteriores.\n"
 			. "- Nunca devuelvas como keywords una frase vaga o de confirmación tal cual; siempre debe quedar el nombre del producto, material o alguno de los términos mapeados arriba (interior/exterior/alto tránsito/PEI).";
+			. "- Decir tono, estilo o diseño en algunos casos es similar (ej: Cerámica tono madera / Cerámica estilo mader / Cerámica diseño madera). Si el usuario consulta con Tono o Estilo respeta esa regla mostrando lo que desea el cliente (como en el ejemplo, cerámicas con estilo/tono/diseño madera) ";
 
 		// Solo los últimos turnos (no toda la conversación) para mantener la
 		// clasificación rápida y barata; alcanza para resolver respuestas de seguimiento.
