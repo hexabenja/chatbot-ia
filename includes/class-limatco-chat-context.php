@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Limatco_Chat_Context {
 
-	const MAX_PRODUCTS = 7;
+	const MAX_PRODUCTS = 5;
 
 	// Tamaño del pool de candidatos que se trae por cada término buscado, antes de
 	// combinar/mezclar en PHP y recortar a MAX_PRODUCTS.
