@@ -187,9 +187,9 @@ class Limatco_Chat_Api {
 			. "- Si el usuario menciona tránsito alto, uso comercial, local, negocio o similar, agrega la keyword 'alto tránsito'. Si menciona explícitamente un nivel PEI, respétalo tal cual (ej. 'PEI 4').\n"
 			. "- No inventes ni agregues color/tono/estilo como keyword salvo que el usuario haya dado un término muy específico y ya haya funcionado antes en la conversación.\n"
 			. "- Si el mensaje más reciente es una respuesta vaga, de confirmación o sin términos nuevos (ej: 'todas las alternativas', 'cualquiera', 'sí', 'muéstrame más', 'recomiéndame'), IGNÓRALO como fuente de keywords y en su lugar usa el producto/categoría/ambiente concreto que ya se venía buscando en los turnos anteriores.\n"
-			. "- Nunca devuelvas como keywords una frase vaga o de confirmación tal cual; siempre debe quedar el nombre del producto, material o alguno de los términos mapeados arriba (interior/exterior/alto tránsito/PEI).";
-			. "- Decir tono, estilo o diseño en algunos casos es similar (ejemplo: Cerámica tono madera / Cerámica estilo madera / Cerámica diseño madera). Si el usuario consulta por algún tono, estilo o diseño de algún tipo, entrega lo que desea el cliente (como en el ejemplo, madera) ";
-			. "- Estilo Hidraulicos es lo mismo que Estilo Decorados";
+			. "- Nunca devuelvas como keywords una frase vaga o de confirmación tal cual; siempre debe quedar el nombre del producto, material o alguno de los términos mapeados arriba (interior/exterior/alto tránsito/PEI).\n"
+			. "- Decir tono, estilo o diseño en algunos casos es similar (ejemplo: Cerámica tono madera / Cerámica estilo madera / Cerámica diseño madera). Si el usuario consulta por algún tono, estilo o diseño de algún tipo, entrega lo que desea el cliente (como en el ejemplo, madera).\n"
+			. "- Estilo Hidráulicos es lo mismo que Estilo Decorados.";
 
 
 		// Últimos turnos de mensajes alcanzan para resolver respuestas de seguimiento.
@@ -402,6 +402,7 @@ class Limatco_Chat_Api {
 	/**
 	 * Detecta si el mensaje pregunta por sucursales, direcciones, horarios de atención o contacto de una tienda en particular. 
 	 * estoe NO devuelve una respuesta fija como check_hardcoded_reply(),: solo decide si se agrega BRANCHES_CONTEXT al contexto
+
 	 */
 	private function is_branches_query( $user_message ) {
 		$normalized = strtolower( remove_accents( $user_message ) );
