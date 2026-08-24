@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Limatco_Chat_Admin {
 
 	public function __construct() {
-		add_action( 'admin_menu', array( $this, 'add_settings_page' ) );
+		add_action( 'admin_menu', array( $this, 'add_settings_page' ) ); // página en ajustes
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 	}
 
@@ -24,7 +24,7 @@ class Limatco_Chat_Admin {
 		);
 	}
 
-	public function register_settings() {
+	public function register_settings() { // configuración de modelo en admin panel
 		register_setting( 'lac_settings_group', 'lac_api_key', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 		register_setting( 'lac_settings_group', 'lac_model', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 		register_setting( 'lac_settings_group', 'lac_system_prompt', array( 'sanitize_callback' => 'sanitize_textarea_field' ) );
@@ -53,7 +53,7 @@ class Limatco_Chat_Admin {
 							<input type="password" id="lac_api_key" name="lac_api_key"
 								value="<?php echo esc_attr( get_option( 'lac_api_key', '' ) ); ?>"
 								class="regular-text" autocomplete="off" />
-							<p class="description">Se guarda en la base de datos de WP y solo se usa server-side; nunca se envía al navegador.</p>
+							<p class="description">Sólo uso server-side debido a Php, nunca se envía al navegador. Reforzar bbdd wp</p>
 						</td>
 					</tr>
 					<tr>
@@ -104,9 +104,7 @@ class Limatco_Chat_Admin {
 			<hr />
 			<h2>Catálogo / contexto (dinámico)</h2>
 			<p class="description">
-				El catálogo ya NO se pega a mano: cada mensaje del visitante dispara una
-				búsqueda en vivo sobre tus productos de WooCommerce (categoría detectada +
-				palabras clave). Categorías de producto detectadas actualmente:
+				Categorías de producto detectadas actualmente:
 				<strong><?php
 					$cats = Limatco_Chat_Context::get_available_categories();
 					echo $cats ? esc_html( implode( ', ', $cats ) ) : 'ninguna (revisa que WooCommerce tenga productos publicados).';

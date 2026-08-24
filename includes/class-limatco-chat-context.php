@@ -13,7 +13,7 @@ class Limatco_Chat_Context {
 	const MAX_PRODUCTS = 5;
 
 	// Tamaño del pool de candidatos que se trae por cada término buscado, antes de
-	// combinar/mezclar en PHP y recortar a MAX_PRODUCTS.
+	// combinar/mezclar en PHP y recortar a MAX_PRODUCTS. COSIDERAR REMOVER EN POSTERIORES VERSIONES DEBIDO A QUE COMO YA ESTÁ ORDERY BY SE PODRÍA OPTIMIZAR MÁS EL TIEMPO DE RESPONSE.
 	const SHUFFLE_POOL_SIZE = 30;
 
 	/**
@@ -42,10 +42,8 @@ class Limatco_Chat_Context {
 	}
 
 	/**
-	 * Ejecuta la búsqueda en WooCommerce y arma el texto de contexto a
-	 * partir de la categoría/keywords detectados en el mensaje del usuario.
-	 *
-	 * Se agrega la búsqueda en cascada: categoría + keywords juntos no encuentran nada (combinación muy específica), reintenta solo con las keywords de la consulta del usuario y si tampoco encuentra nada, reintenta solo con la categoría, antes de no dar respuesta con algun producto.
+	 * Ejecuta la búsqueda en WooCommerce y arma el texto de contexto a partir de la categoría/keywords detectados en el mensaje del usuario.
+	 * Búsqueda en cascada: categoría + keywords juntos no encuentran nada (combinación muy específica), reintenta solo con las keywords de la consulta del usuario y si tampoco encuentra nada, reintenta solo con la categoría, antes de no dar respuesta con algun producto.
 	 *
 	 * @param string $category_slug Slug de categoría (puede venir vacío).
 	 * @param string $keywords      Texto libre de búsqueda (puede venir vacío).
@@ -95,10 +93,9 @@ class Limatco_Chat_Context {
 	}
 
 	/**
-	 * Busca en WooCommerce con la categoría/keywords dados (cualquiera de los dos
-	 * puede venir vacío). Las keywords se parten en términos individuales y se
-	 * buscan en OR (no como frase completa en AND): WordPress exige que TODAS las
-	 * palabras de 's' aparezcan para que un producto califique, así que una frase
+	 * Busca en WooCommerce con la categoría/keywords dados
+	 * Las keywords se parten en términos individuales y se buscan en OR (no como frase completa en AND): 
+	 * WordPress exige que TODAS las palabras de '?s' aparezcan para que un producto califique, así que una frase
 	 * de 2-3 palabras (ej. "interior alto tránsito") casi nunca calza completa aunque
 	 * el producto sí cumpla con cada término por separado. Se prioriza a los productos
 	 * que calzan con más términos, y se mezcla el resto para variar marcas.

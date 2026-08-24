@@ -3,7 +3,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/** Endpoint REST: classify_query() detecta categoría/keywords, Limatco_Chat_Context busca en WooCommerce, y call_gemini_api() responde usando solo esos productos como contexto. Se usa el formato "messages"/"choices". La API key nunca se expone al navegador. */
+/** Endpoint REST: classify_query() detecta categoría/keywords, Limatco_Chat_Context busca en WooCommerce, y call_gemini_api() responde usando solo esos productos como contexto. */
 class Limatco_Chat_Api {
 
 	const NAMESPACE_ROUTE = 'limatco-chat/v1';
@@ -17,10 +17,7 @@ class Limatco_Chat_Api {
 	const PHONE_REPLY = "Si deseas recibir ayuda con un ejecutivo, llama a este número, directo a nuestra central de cotizaciones: +56 2 2938 1410 [Haz clic para llamar a Central de Cotizaciones](tel:229381410)";
 
 	// Contexto de sucursales (dirección, teléfonos, horarios). Se inyecta en el prompt
-	// SOLO cuando el mensaje parece preguntar por sucursales/horarios/contacto (ver
-	// is_branches_query()), para no gastar tokens de más en cada mensaje. La IA responde
-	// de forma natural y específica a lo que se le pregunte (ej. el teléfono de una sola
-	// sucursal), en vez de devolver siempre el mismo texto completo sin importar la pregunta.
+	// is_branches_query()); IA responde de forma natural y específica a lo que se le pregunte
 	const BRANCHES_CONTEXT = "[Sucursal Independencia](https://limatco.cl/sucursal-independencia/) ubicada en: Coronel Agustín López de Alcázar 546, Independencia\nSala de Ventas\n+56 2 2637 5566\n+56 2 2637 5500\n+56 2 2716 4650\n+56 5 7276 9342\nSucursal de Central Cotizaciones\n+56 2 2938 1410\n[Llamar a Central de Cotizaciones](tel:56229381410)\nHorario de Atención\nLunes a Viernes 9:00 - 19:00 Hrs\nSábado 9:00 - 14:00 Hrs.\n\n[Sucursal Vespucio Sur](https://limatco.cl/sucursal-vespucio-sur/) ubicada en: Av. Américo Vespucio 4288\nVentas\n+56 2 2221 1030\n+56 2 2221 1656\nAtención a clientes\n+56 2 2221 2477\n+56 2 2711 7603\n+56 6 5275 8446\nHorario de Atención\nLunes a Viernes 09:00 - 19:00 Hrs.\nSábado 09:00 - 14:00 Hrs.\n\n[Sucursal Manquehue sur](https://limatco.cl/sucursal-manquehue-sur/) ubicada en: Manquehue Sur 676\nVentas\n+56 2 2342 2481\n+56 2 2298 5739\n+56 9 6407 2969\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal San Miguel](https://limatco.cl/sucursal-san-miguel/) ubicada en: Gran Avenida 4559\nVentas\n+56 2 2324 5681\n+56 9 6520 2999\n+56 9 5333 4007\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Puente Alto](https://limatco.cl/sucursal-puente-alto/) ubicada en: Eyzaguirre 077, esquina Balmaceda\nVentas\n+56 2 2493 1506\n+56 9 8527 5859\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Maipú](https://limatco.cl/sucursal-maipu/) ubicada en: Libertador Gral. Bernardo O'Higgins 10 (esquina Pajaritos)\nVentas\n+56 2 2458 0935\n+56 2 2418 0613\n+56 9 7430 0982\n+56 9 6495 4936\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal San Bernardo](https://limatco.cl/sucursal-san-bernardo/) ubicada en: Barros Arana 796\nVentas\n+56 2 2859 1103\n+56 9 8500 7033\n+56 5 7276 2920\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Las Condes](https://limatco.cl/sucursal-lascondes/) ubicada en: Av. Las Condes 12803, Centro Comercial Portal la Cabaña\nVentas\n+56 2 3280 0371\nAtención a clientes\n+56 2 3280 0391\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Talagante](https://limatco.cl/sucursal-talagante/) ubicada en: Av. Bernardo O'Higgins 0225 (referencia Volcán Llaima 799)\nVentas\n+56 2 2938 1377\n+56 9 6159 8807\n+56 9 6354 6171\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Chicureo](https://limatco.cl/sucursal-chicureo/) ubicada en: Carretera General San Martín 6000, Local 119\nVentas\n+56 2 2733 5911\n+56 2 2733 5910\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs.\n\n[Sucursal Padre Hurtado](https://limatco.cl/sucursal-padre-hurtado/) ubicada en: Calle San Ignacio N° 1624, Locales 18 y 19, Centro Comercial Laguna del Sol\nVentas\n+56 9 9634 6019\n+56 9 9733 1068\nHorario de Atención\nLunes a Viernes 10:00 - 18:30 Hrs.\nSábado 10:00 - 14:00 Hrs. Sólamente en Limatco Vespucio y Limatco Independencia está disponible el retiro inmediato, en las demás sucursales de Limatco el pedido está listo al día siguiente. ";
 
 	public function __construct() {
@@ -30,9 +27,9 @@ class Limatco_Chat_Api {
 	public function register_routes() {
 		register_rest_route(
 			self::NAMESPACE_ROUTE,
-			'/message',
+			'/message', // composicion de mensajes en json
 			array(
-				'methods'             => 'POST',
+				'methods'             => 'POST', // evita que sea por get obligando a entrar al sitio web
 				'callback'            => array( $this, 'handle_message' ),
 				'permission_callback' => '__return_true', // Chat público
 				'args'                => array(
@@ -49,7 +46,7 @@ class Limatco_Chat_Api {
 			)
 		);
 
-		// El HTML de la página al cachearse ya sea por navegador, plugin o Cloudafare queda con el mismo WP-nonce, este código entrega un nonce nuevo en cada request.
+		// Refresh de wp-nonce para evitar que se cachee
 		register_rest_route(
 			self::NAMESPACE_ROUTE,
 			'/nonce',
@@ -89,14 +86,11 @@ class Limatco_Chat_Api {
 
 		$history = $request->get_param( 'history' );
 		if ( ! is_array( $history ) ) {
-			$history = array();
+			$history = array(); // 
 		}
 
-		// Respuesta fija para contacto telefónico/ejecutivo: se resuelve ANTES de tocar la
-		// IA, así no depende de que el modelo la interprete bien cada vez, y no gasta tokens
-		// de la API en algo que siempre debe responder exactamente lo mismo. Las preguntas de
-		// sucursales, en cambio, SÍ pasan por la IA (ver $is_branches_query más abajo), porque
-		// ahí conviene una respuesta específica a lo preguntado, no un texto fijo siempre igual.
+		// Respuesta fija para contacto telefónico/ejecutivo: Respuestas hardcodeadas
+		// Las preguntas de sucursales, ($is_branches_query) sí ocupan tokens
 		$hardcoded_reply = $this->check_hardcoded_reply( $user_message );
 		if ( null !== $hardcoded_reply ) {
 			return new WP_REST_Response(
@@ -198,9 +192,8 @@ class Limatco_Chat_Api {
 			. "- Estilo Hidraulicos es lo mismo que Estilo Decorados";
 
 
-		// Solo los últimos turnos (no toda la conversación) para mantener la
-		// clasificación rápida y barata; alcanza para resolver respuestas de seguimiento.
-		$recent_history = array_slice( $history, -6 );
+		// Últimos turnos de mensajes alcanzan para resolver respuestas de seguimiento.
+		$recent_history = array_slice( $history, -6 ); // 6 mensajes hacia atrás
 
 		$messages = array();
 		foreach ( $recent_history as $turn ) {
@@ -242,7 +235,7 @@ class Limatco_Chat_Api {
 		);
 	}
 
-	/** Se exigen roles alternados (user, assistant, ...), que el primer mensaje sea "user" y que ningún content venga vacío (Gemini es más tolerante que Anthropic con esto, pero el historial del widget no lo garantiza), así que se normaliza aquí antes de enviarlo. */
+	/** Se exigen roles alternados (user, assistant), que el primer mensaje sea "user" y que ningún content venga vacío. */
 	private function build_messages( $history, $user_message ) {
 		$raw = array();
 
@@ -264,7 +257,7 @@ class Limatco_Chat_Api {
 			);
 		}
 
-		// Debe empezar en "user": si el primer turno guardado es del bot (ej. saludo inicial), lo descartamos.
+		// Debe empezar en "user": si el primer turno guardado es del bot (ej. saludo inicial), se descarta.
 		while ( ! empty( $raw ) && 'assistant' === $raw[0]['role'] ) {
 			array_shift( $raw );
 		}
@@ -325,7 +318,7 @@ class Limatco_Chat_Api {
 
 	return implode( '', $out );
 }
-	/** Llamada genérica a la API de Gemini (endpoint OpenAI-compatible), reutilizada para clasificar (paso 1) y responder (paso 3). A diferencia de Anthropic (system aparte), aquí el prompt de sistema va como un mensaje más dentro de "messages", con role:"system" al principio. */
+	/** Llamada genérica a la API de Gemini, reutilizada para clasificar (paso 1) y responder (paso 3). el prompt de sistema va como un mensaje más dentro de "messages", con role:"system". */
 	private function call_gemini_api( $api_key, $model, $system_prompt, $messages, $max_tokens ) {
 		$full_messages = array();
 		if ( '' !== trim( (string) $system_prompt ) ) {
@@ -352,7 +345,7 @@ class Limatco_Chat_Api {
 					'content-type'  => 'application/json',
 				),
 				'body'    => wp_json_encode( $body ),
-				// Con historial largo + respuesta de 1200 tokens, 30s puede no alcanzar.
+				// Con historial largo + respuesta de 1200 tokens, 30s de espera puede no alcanzar.
 				'timeout' => 45,
 			)
 		);
@@ -379,10 +372,8 @@ class Limatco_Chat_Api {
 	}
 
 	/**
-	 * Detecta la intención fija de contacto telefónico/ejecutivo por palabras clave,
-	 * sin pasar por la IA. Se normaliza a minúsculas y sin tildes para que coincida
-	 * sin importar cómo lo escriba el usuario. Devuelve el texto (Markdown) de la
-	 * respuesta fija, o null si el mensaje no calza.
+	 * Detecta la intención de contacto telefónico/ejecutivo por palabras clave, sin gastar tokens.
+	 * Se normaliza a minúsculas y sin tildes para que coincida
 	 */
 	private function check_hardcoded_reply( $user_message ) {
 		$normalized = strtolower( remove_accents( $user_message ) );
@@ -409,11 +400,8 @@ class Limatco_Chat_Api {
 	}
 
 	/**
-	 * Detecta si el mensaje parece preguntar por sucursales, direcciones, horarios de
-	 * atención o contacto de una tienda en particular. A diferencia de check_hardcoded_reply(),
-	 * esto NO devuelve una respuesta fija: solo decide si se agrega BRANCHES_CONTEXT al
-	 * prompt para que la IA responda específicamente a lo que se preguntó (ej. el horario
-	 * de una sola sucursal), en vez de un texto rígido siempre igual.
+	 * Detecta si el mensaje pregunta por sucursales, direcciones, horarios de atención o contacto de una tienda en particular. 
+	 * estoe NO devuelve una respuesta fija como check_hardcoded_reply(),: solo decide si se agrega BRANCHES_CONTEXT al contexto
 	 */
 	private function is_branches_query( $user_message ) {
 		$normalized = strtolower( remove_accents( $user_message ) );
