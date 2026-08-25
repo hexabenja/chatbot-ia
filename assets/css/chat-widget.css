@@ -218,6 +218,27 @@
 	color: #b3261e;
 }
 
+/* Botón de "agregar al carrito" en la sección de abajo de cada tarjeta. */
+.lac-add-cart-btn {
+	align-self: flex-start;
+	margin-top: 4px;
+	border: none;
+	background: #0f7a3c;
+	color: #fff;
+	font-size: 11.5px;
+	font-weight: 700;
+	padding: 6px 12px;
+	border-radius: 8px;
+	cursor: pointer;
+}
+.lac-add-cart-btn:hover {
+	opacity: 0.9;
+}
+.lac-add-cart-btn:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
 .lac-form {
 	display: flex;
 	border-top: 1px solid #e5e5e5;

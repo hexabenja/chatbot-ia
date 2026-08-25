@@ -111,6 +111,19 @@
 				info.appendChild( saleBox );
 			}
 
+			// La tarjeta completa es un <a> (abre la ficha del producto), así que el clic del botón de carrito no debe llevar a la ficha
+			var addBtn = document.createElement( 'button' );
+			addBtn.type = 'button';
+			addBtn.className = 'lac-add-cart-btn';
+			addBtn.textContent = 'Agregar al carrito';
+			addBtn.disabled = ! product.in_stock;
+			addBtn.addEventListener( 'click', function ( e ) {
+				e.preventDefault();
+				e.stopPropagation();
+				addToCart( product, addBtn );
+			} );
+			info.appendChild( addBtn );
+
 			card.appendChild( info );
 			container.appendChild( card );
 		} );
@@ -132,6 +145,46 @@
 			.then( function ( response ) { return response.json(); } )
 			.then( function ( data ) { return data.nonce; } )
 			.catch( function () { return lacChatConfig.nonce; } ); // fallback si /nonce falla
+	}
+
+	// REVISAR COMPATIBILIDAD CON LIMATCO. Llama al endpoint /add-to-cart al hacer clic en "Agregar al carrito" de una
+	// tarjeta, y avisa en el chat (como mensaje del asistente) si se agregó o no.
+	function addToCart( product, btn ) {
+		btn.disabled = true;
+		var originalLabel = btn.textContent;
+		btn.textContent = 'Agregando…';
+
+		getFreshNonce().then( function ( nonce ) {
+			return fetch( lacChatConfig.restUrl.replace( '/message', '/add-to-cart' ), {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-WP-Nonce': nonce
+				},
+				body: JSON.stringify( { product_id: product.id } )
+			} );
+		} )
+			.then( function ( response ) {
+				return response.json().then( function ( data ) {
+					return { ok: response.ok, data: data };
+				} );
+			} )
+			.then( function ( result ) {
+				if ( result.ok && result.data && result.data.success ) {
+					btn.textContent = 'Producto agregado al carrito';
+					appendMessage( 'assistant', 'Se agregó "' + ( product.name || 'el producto' ) + '" al carrito.' );
+				} else {
+					btn.disabled = false;
+					btn.textContent = originalLabel;
+					var errMsg = ( result.data && result.data.error ) ? result.data.error : 'No se pudo agregar al carrito.';
+					appendMessage( 'assistant', errMsg );
+				}
+			} )
+			.catch( function () {
+				btn.disabled = false;
+				btn.textContent = originalLabel;
+				appendMessage( 'assistant', 'No se pudo conectar para agregar el producto al carrito.' );
+			} );
 	}
 
 	function sendMessage( message ) {
