@@ -57,7 +57,7 @@ class Limatco_Chat_Api {
 			)
 		);
 
-		// Botón "Agregar" de una tarjeta de producto del chat: agrega el producto al carrito de WooCommerce.
+		// Botón "Agregar" de una tarjeta de producto del chat
 		register_rest_route(
 			self::NAMESPACE_ROUTE,
 			'/add-to-cart',
@@ -185,7 +185,7 @@ class Limatco_Chat_Api {
 		);
 	}
 
-	/** Recibe el product_id del botón "Agregar" de una tarjeta de producto en el chat y lo agrega al carrito de WooCommerce vía WC()->cart->add_to_cart(). */
+	/** REVISAR COMPATIBILIDAD CON LIMATCO DEBIDO A ENDPOINT Recibe el product_id del botón "Agregar" de una tarjeta de producto en el chat y lo agrega al carrito de WooCommerce vía WC()->cart->add_to_cart() (ENDPOINT). */
 	public function handle_add_to_cart( WP_REST_Request $request ) {
 
 		if ( ! wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
