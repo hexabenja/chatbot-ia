@@ -56,6 +56,23 @@ class Limatco_Chat_Api {
 				'permission_callback' => '__return_true',
 			)
 		);
+
+		// Botón "Agregar" de una tarjeta de producto del chat: agrega el producto al carrito de WooCommerce.
+		register_rest_route(
+			self::NAMESPACE_ROUTE,
+			'/add-to-cart',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'handle_add_to_cart' ),
+				'permission_callback' => '__return_true',
+				'args'                => array(
+					'product_id' => array(
+						'required' => true,
+						'type'     => 'integer',
+					),
+				),
+			)
+		);
 	}
 
 	public function handle_nonce() {
@@ -163,6 +180,45 @@ class Limatco_Chat_Api {
 			array(
 				'reply'    => $this->markdown_to_html( $response ),
 				'products' => $context_data['products'],
+			),
+			200
+		);
+	}
+
+	/** Recibe el product_id del botón "Agregar" de una tarjeta de producto en el chat y lo agrega al carrito de WooCommerce vía WC()->cart->add_to_cart(). */
+	public function handle_add_to_cart( WP_REST_Request $request ) {
+
+		if ( ! wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
+			error_log( 'Revisar si hay algún plugin de Caché, Cloudfare o modo administrador de WP activo' );
+			return new WP_REST_Response( array( 'error' => 'Nonce inválido o expirado, recargue la página' ), 403 );
+		}
+
+		if ( ! function_exists( 'wc_load_cart' ) || ! function_exists( 'wc_get_product' ) ) {
+			error_log( 'WooCommerce no está activo, no se puede agregar al carrito' );
+			return new WP_REST_Response( array( 'error' => 'WooCommerce no está activo en este sitio.' ), 500 );
+		}
+
+		// En una request REST el carrito/sesión de WooCommerce no siempre queda inicializado como en una visita normal al frontend.
+		wc_load_cart();
+
+		$product_id = (int) $request->get_param( 'product_id' );
+		$product    = wc_get_product( $product_id );
+
+		if ( ! $product || ! $product->is_purchasable() || ! $product->is_in_stock() ) {
+			return new WP_REST_Response( array( 'error' => 'Este producto ya no está disponible.' ), 400 );
+		}
+
+		$added = WC()->cart->add_to_cart( $product_id, 1 );
+
+		if ( ! $added ) {
+			error_log( "No se pudo agregar el producto {$product_id} al carrito desde el chat" );
+			return new WP_REST_Response( array( 'error' => 'No se pudo agregar el producto al carrito.' ), 500 );
+		}
+
+		return new WP_REST_Response(
+			array(
+				'success'    => true,
+				'cart_count' => WC()->cart->get_cart_contents_count(),
 			),
 			200
 		);
