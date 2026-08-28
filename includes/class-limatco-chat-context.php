@@ -16,6 +16,22 @@ class Limatco_Chat_Context {
 	// combinar/mezclar en PHP y recortar a MAX_PRODUCTS. COSIDERAR REMOVER EN POSTERIORES VERSIONES DEBIDO A QUE COMO YA ESTÁ ORDERY BY SE PODRÍA OPTIMIZAR MÁS EL TIEMPO DE RESPONSE.
 	const SHUFFLE_POOL_SIZE = 30;
 
+	// Slugs de los Atributos de WooCommerce del catálogo (confirmados en wp-admin ->
+	// Productos -> Atributos, ~1773/1993 productos los tienen cargados) y su etiqueta
+	// legible para el texto de contexto. Se usan tanto para armar la línea de atributos
+	// de cada producto como para mapear los filtros que devuelve classify_query().
+	const ATTRIBUTE_LABELS = array(
+		'colores-predominantes' => 'Colores predominantes',
+		'formato'               => 'Formato',
+		'estetica-o-diseno'     => 'Estética/diseño',
+		'terminacion'           => 'Terminación',
+		'acabado'               => 'Acabado',
+		'cantos-o-bordes'       => 'Cantos/bordes',
+		'caras-o-destonalizado' => 'Caras/destonalizado',
+		'm²-por-caja'           => 'm² por caja',
+		'marcas'                => 'Marca',
+	);
+
 	/**
 	 * Devuelve la lista de categorías de producto disponibles (slug => nombre),
 	 * usada para que el paso de clasificación elija entre categorías reales.
@@ -45,13 +61,16 @@ class Limatco_Chat_Context {
 	 * Ejecuta la búsqueda en WooCommerce y arma el texto de contexto a partir de la categoría/keywords detectados en el mensaje del usuario.
 	 * Búsqueda en cascada: categoría + keywords juntos no encuentran nada (combinación muy específica), reintenta solo con las keywords de la consulta del usuario y si tampoco encuentra nada, reintenta solo con la categoría, antes de no dar respuesta con algun producto.
 	 *
-	 * @param string $category_slug Slug de categoría (puede venir vacío).
-	 * @param string $keywords      Texto libre de búsqueda (puede venir vacío).
+	 * @param string $category_slug      Slug de categoría (puede venir vacío).
+	 * @param string $keywords           Texto libre de búsqueda (puede venir vacío).
+	 * @param array  $colores            Colores predominantes pedidos (puede venir vacío). Ej: ['blanco'] o ['blanco','gris'].
+	 * @param bool   $single_color_only  true si el usuario pidió explícitamente un producto de un solo color (sin combinar).
+	 * @param array  $atributos          Filtros de atributo adicionales, slug => valor (ej. ['formato' => '60x60', 'terminacion' => 'antideslizante']).
 	 * @return array{text:string,products:array} 'text' va al prompt de la IA;
 	 *         'products' es la data (imagen/precio/stock/oferta) para las
 	 *         tarjetas que el widget pinta debajo de la respuesta.
 	 */
-	public static function get_context_for_query( $category_slug, $keywords ) {
+	public static function get_context_for_query( $category_slug, $keywords, $colores = array(), $single_color_only = false, $atributos = array() ) {
 		if ( ! function_exists( 'wc_get_products' ) ) {
 			return array(
 				'text'     => 'WooCommerce no está activo en este sitio.',
@@ -59,19 +78,25 @@ class Limatco_Chat_Context {
 			);
 		}
 
-		// Cascada 1: categoría + keywords (específico)
-		$products = self::search_products( $category_slug, $keywords );
+		$tax_query = self::build_attribute_tax_query( $colores, $atributos );
 
-		// Cascada 2: Reintenta solo con keywords.
-		if ( empty( $products ) && ! empty( $category_slug ) && ! empty( $keywords ) ) {
-			$products = self::search_products( '', $keywords );
+		// Primero se intenta CON el filtro de atributos (color/formato/terminación/etc.):
+		// esto es lo que evita traer una cerámica que solo menciona "blanco" de paso como
+		// una variante más. Si el filtro es demasiado estricto y no encuentra nada, se cae
+		// a la cascada de siempre sin ese filtro (mejor mostrar algo cercano que nada).
+		$products = array();
+		if ( ! empty( $tax_query ) ) {
+			$products = self::run_cascade( $category_slug, $keywords, $tax_query );
+
+			if ( $single_color_only && 1 === count( $colores ) ) {
+				$products = self::filter_single_color_only( $products, $colores[0] );
+			}
 		}
 
-		// Cascada 3: Reintenta solo con la categoría (no keywords)
-		if ( empty( $products ) && ! empty( $category_slug ) ) {
-			$products = self::search_products( $category_slug, '' );
+		if ( empty( $products ) ) {
+			$products = self::run_cascade( $category_slug, $keywords, array() );
 		}
-		// Cascada 4: Búsqueda fallida
+
 		if ( empty( $products ) ) {
 			return array(
 				'text'     => 'No se encontraron productos que calcen con esa búsqueda en nuestro catálogo, intenta detallando tu búsqueda.',
@@ -93,6 +118,26 @@ class Limatco_Chat_Context {
 	}
 
 	/**
+	 * Cascada categoría+keywords -> solo keywords -> solo categoría, aplicando el mismo
+	 * $tax_query (opcional) en los 3 pasos. Es la misma cascada de siempre, solo separada
+	 * en su propio método para poder correrla dos veces (con y sin atributos) desde
+	 * get_context_for_query().
+	 */
+	private static function run_cascade( $category_slug, $keywords, $tax_query ) {
+		$products = self::search_products( $category_slug, $keywords, $tax_query );
+
+		if ( empty( $products ) && ! empty( $category_slug ) && ! empty( $keywords ) ) {
+			$products = self::search_products( '', $keywords, $tax_query );
+		}
+
+		if ( empty( $products ) && ! empty( $category_slug ) ) {
+			$products = self::search_products( $category_slug, '', $tax_query );
+		}
+
+		return $products;
+	}
+
+	/**
 	 * Busca en WooCommerce con la categoría/keywords dados
 	 * Las keywords se parten en términos individuales y se buscan en OR (no como frase completa en AND): 
 	 * WordPress exige que TODAS las palabras de '?s' aparezcan para que un producto califique, así que una frase
@@ -100,11 +145,11 @@ class Limatco_Chat_Context {
 	 * el producto sí cumpla con cada término por separado. Se prioriza a los productos
 	 * que calzan con más términos, y se mezcla el resto para variar marcas.
 	 */
-	private static function search_products( $category_slug, $keywords ) {
+	private static function search_products( $category_slug, $keywords, $tax_query = array() ) {
 		$keywords = trim( (string) $keywords );
 
 		if ( '' === $keywords ) {
-			$products = self::run_single_term_query( $category_slug, '' );
+			$products = self::run_single_term_query( $category_slug, '', $tax_query );
 			if ( empty( $products ) ) {
 				return $products;
 			}
@@ -118,13 +163,13 @@ class Limatco_Chat_Context {
 		$terms = self::expand_search_terms( $keywords );
 
 		if ( empty( $terms ) ) {
-			return self::run_single_term_query( $category_slug, $keywords );
+			return self::run_single_term_query( $category_slug, $keywords, $tax_query );
 		}
 
 		$scored = array(); // id => array('product' => WC_Product, 'score' => int)
 
 		foreach ( $terms as $term ) {
-			$found = self::run_single_term_query( $category_slug, $term );
+			$found = self::run_single_term_query( $category_slug, $term, $tax_query );
 			foreach ( $found as $product ) {
 				$id = $product->get_id();
 				if ( ! isset( $scored[ $id ] ) ) {
@@ -188,8 +233,8 @@ class Limatco_Chat_Context {
 		return array_values( array_unique( $terms ) );
 	}
 
-	/** Ejecuta una única consulta a WooCommerce con la categoría/término dados (cualquiera de los dos puede venir vacío). */
-	private static function run_single_term_query( $category_slug, $term ) {
+	/** Ejecuta una única consulta a WooCommerce con la categoría/término dados (cualquiera de los dos puede venir vacío), más un $tax_query opcional (filtro de atributos: color/formato/terminación/etc.). */
+	private static function run_single_term_query( $category_slug, $term, $tax_query = array() ) {
 		$args = array(
 			'status'  => 'publish',
 			'limit'   => self::SHUFFLE_POOL_SIZE,
@@ -210,17 +255,27 @@ class Limatco_Chat_Context {
 			$args['s'] = $term;
 		}
 
+		if ( ! empty( $tax_query ) ) {
+			// wc_get_products() reenvía argumentos no reconocidos directamente a WP_Query,
+			// así que 'tax_query' filtra por los Atributos del producto (color/formato/etc.)
+			// igual que si se filtrara por categoría.
+			$args['tax_query'] = $tax_query;
+		}
+
 		return wc_get_products( $args );
 	}
 
 	/**
 	 * Formatea un producto de WooCommerce como una línea de contexto.
+	 * Usa los Atributos del catálogo (colores, formato, terminación, etc. — ver
+	 * ATTRIBUTE_LABELS) en vez de la descripción larga: son datos estructurados,
+	 * mucho más confiables para que la IA filtre por color/formato/antideslizante
+	 * que tener que interpretar un párrafo de texto libre.
 	 */
 	private static function format_product_line( $product ) {
 		$name        = $product->get_name();
 		$price       = html_entity_decode( wp_strip_all_tags( wc_price( $product->get_price() ) ), ENT_QUOTES, 'UTF-8' );
 		$stock       = $product->is_in_stock() ? 'Disponible' : 'Sin stock';
-		$long_desc   = wp_strip_all_tags( $product->get_description() );
 		$sku         = $product->get_sku();
 		$url         = get_permalink( $product->get_id() );
 
@@ -233,12 +288,115 @@ class Limatco_Chat_Context {
 		if ( ! empty( $sku ) ) {
 			$parts[] = 'SKU: ' . $sku;
 		}
-		if ( ! empty( $long_desc ) ) {
-			$parts[] = 'Descripción: ' . $long_desc;
+
+		$attributes_text = self::format_attributes( $product );
+		if ( ! empty( $attributes_text ) ) {
+			$parts[] = $attributes_text;
 		}
+
 		$parts[] = 'Link: ' . $url;
 
 		return implode( ' | ', $parts );
+	}
+
+	/** Arma la línea "Colores predominantes: X | Formato: Y | ..." con los atributos que el producto sí tenga cargados (~1773/1993 en el catálogo actual). */
+	private static function format_attributes( $product ) {
+		$lines = array();
+		foreach ( self::ATTRIBUTE_LABELS as $slug => $label ) {
+			$values = self::get_attribute_terms( $product, $slug );
+			if ( ! empty( $values ) ) {
+				$lines[] = $label . ': ' . implode( ', ', $values );
+			}
+		}
+		return implode( ' | ', $lines );
+	}
+
+	/**
+	 * Lee los valores (nombres de término) de un Atributo del producto dado su slug.
+	 * Se prueba primero con el prefijo 'pa_' (así registra internamente WooCommerce
+	 * los atributos globales) y, si esa taxonomía no existe, se prueba el slug tal
+	 * cual — mismo patrón de fallback que get_product_brand() más abajo.
+	 */
+	private static function get_attribute_terms( $product, $slug ) {
+		$taxonomies = array( 'pa_' . $slug, $slug );
+
+		foreach ( $taxonomies as $taxonomy ) {
+			if ( ! taxonomy_exists( $taxonomy ) ) {
+				continue;
+			}
+			$terms = get_the_terms( $product->get_id(), $taxonomy );
+			if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+				return wp_list_pluck( $terms, 'name' );
+			}
+		}
+
+		return array();
+	}
+
+	/**
+	 * Arma el tax_query de WP_Query a partir de los colores/atributos que
+	 * Limatco_Chat_Api::classify_query() ya extrajo del mensaje del usuario.
+	 *
+	 * Los colores usan 'AND' cuando el usuario pidió una combinación de 2+ colores
+	 * específica (el producto debe tenerlos TODOS) y 'IN' cuando pidió solo 1 color
+	 * (basta con que lo tenga, aunque el producto tenga otros colores además).
+	 *
+	 * @param array $colores   Ej: ['blanco'] o ['blanco', 'gris'].
+	 * @param array $atributos Filtros adicionales, slug => valor. Ej: ['formato' => '60x60'].
+	 */
+	private static function build_attribute_tax_query( $colores, $atributos ) {
+		$clauses = array();
+
+		if ( ! empty( $colores ) ) {
+			$color_taxonomy = taxonomy_exists( 'pa_colores-predominantes' ) ? 'pa_colores-predominantes' : 'colores-predominantes';
+			if ( taxonomy_exists( $color_taxonomy ) ) {
+				$clauses[] = array(
+					'taxonomy' => $color_taxonomy,
+					'field'    => 'name',
+					'terms'    => $colores,
+					'operator' => count( $colores ) > 1 ? 'AND' : 'IN',
+				);
+			}
+		}
+
+		foreach ( $atributos as $slug => $value ) {
+			if ( '' === $value ) {
+				continue;
+			}
+			$taxonomy = taxonomy_exists( 'pa_' . $slug ) ? 'pa_' . $slug : $slug;
+			if ( ! taxonomy_exists( $taxonomy ) ) {
+				continue;
+			}
+			$clauses[] = array(
+				'taxonomy' => $taxonomy,
+				'field'    => 'name',
+				'terms'    => $value,
+			);
+		}
+
+		if ( empty( $clauses ) ) {
+			return array();
+		}
+
+		$clauses['relation'] = 'AND';
+		return $clauses;
+	}
+
+	/**
+	 * Para cuando el usuario pide explícitamente un producto de UN SOLO color (ej.
+	 * "que sea puro blanco, sin combinar"). El tax_query con 'IN' ya asegura que el
+	 * producto TIENE ese color, pero no que sea el ÚNICO; WP_Query no puede expresar
+	 * "cantidad de términos = 1", así que se filtra en PHP después de la consulta.
+	 */
+	private static function filter_single_color_only( $products, $color ) {
+		return array_values(
+			array_filter(
+				$products,
+				function ( $product ) {
+					return 1 === count( self::get_attribute_terms( $product, 'colores-predominantes' ) );
+				}
+			)
+		);
 	}
 
 	/**
