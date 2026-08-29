@@ -313,6 +313,10 @@ private static function get_normalized_format_term_ids( $value ) {
 			// wc_get_products() reenvía argumentos no reconocidos directamente a WP_Query,
 			// así que 'tax_query' filtra por los Atributos del producto (color/formato/etc.)
 			// igual que si se filtrara por categoría.
+			error_log(
+    			'LIMATCO DEBUG - TAX_QUERY: ' .
+				wp_json_encode( $tax_query, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES )
+			);
 			$args['tax_query'] = $tax_query;
 		}
 
