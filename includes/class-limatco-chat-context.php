@@ -33,6 +33,58 @@ class Limatco_Chat_Context {
 	);
 
 	/**
+ * Normaliza una medida para comparar "60x60", "60 X 60", "60×60 cm", etc.
+ * La salida canónica es siempre "60x60".
+ */
+private static function normalize_format( $value ) {
+    $value = remove_accents( (string) $value );
+    $value = mb_strtolower( trim( $value ), 'UTF-8' );
+    $value = str_replace( array( '×', 'x', 'X' ), 'x', $value );
+    $value = preg_replace( '/\b(cm|cms|centimetros|centímetros)\b/u', '', $value );
+    $value = preg_replace( '/\s+/', '', $value );
+
+    if ( preg_match( '/(\d+(?:[.,]\d+)?)x(\d+(?:[.,]\d+)?)/u', $value, $m ) ) {
+        return str_replace( ',', '.', $m[1] ) . 'x' . str_replace( ',', '.', $m[2] );
+    }
+
+    return $value;
+}
+
+/**
+ * Devuelve el ID del término real de Formato comparando la medida normalizada.
+ * Así no dependemos de que el nombre almacenado sea exactamente "60x60".
+ */
+private static function get_normalized_format_term_ids( $value ) {
+    $taxonomy = taxonomy_exists( 'pa_formato' ) ? 'pa_formato' : 'formato';
+    if ( ! taxonomy_exists( $taxonomy ) ) {
+        return array();
+    }
+
+    $wanted = self::normalize_format( $value );
+    if ( '' === $wanted ) {
+        return array();
+    }
+
+    $terms = get_terms( array(
+        'taxonomy'   => $taxonomy,
+        'hide_empty' => false,
+    ) );
+
+    if ( is_wp_error( $terms ) || empty( $terms ) ) {
+        return array();
+    }
+
+    $ids = array();
+    foreach ( $terms as $term ) {
+        if ( self::normalize_format( $term->name ) === $wanted ) {
+            $ids[] = (int) $term->term_id;
+        }
+    }
+
+    return $ids;
+}
+	
+	/**
 	 * Devuelve la lista de categorías de producto disponibles (slug => nombre),
 	 * usada para que el paso de clasificación elija entre categorías reales.
 	 */
@@ -80,10 +132,10 @@ class Limatco_Chat_Context {
 
 		$tax_query = self::build_attribute_tax_query( $colores, $atributos );
 
-		// Primero se intenta CON el filtro de atributos (color/formato/terminación/etc.):
-		// esto es lo que evita traer una cerámica que solo menciona "blanco" de paso como
-		// una variante más. Si el filtro es demasiado estricto y no encuentra nada, se cae
-		// a la cascada de siempre sin ese filtro (mejor mostrar algo cercano que nada).
+		// Los atributos son filtros estructurados. Si el usuario pidió un formato,
+		// color, terminación, etc., NO se eliminan silenciosamente en un fallback.
+		// Es preferible informar que no hay coincidencias exactas antes que mostrar
+		// productos de otra medida/material/característica.
 		$products = array();
 		if ( ! empty( $tax_query ) ) {
 			$products = self::run_cascade( $category_slug, $keywords, $tax_query );
@@ -93,7 +145,9 @@ class Limatco_Chat_Context {
 			}
 		}
 
-		if ( empty( $products ) ) {
+		// Solo usamos la búsqueda sin atributos cuando el usuario realmente no pidió
+		// ningún filtro estructurado.
+		if ( empty( $products ) && empty( $tax_query ) ) {
 			$products = self::run_cascade( $category_slug, $keywords, array() );
 		}
 
@@ -350,28 +404,73 @@ class Limatco_Chat_Context {
 		if ( ! empty( $colores ) ) {
 			$color_taxonomy = taxonomy_exists( 'pa_colores-predominantes' ) ? 'pa_colores-predominantes' : 'colores-predominantes';
 			if ( taxonomy_exists( $color_taxonomy ) ) {
-				$clauses[] = array(
-					'taxonomy' => $color_taxonomy,
-					'field'    => 'name',
-					'terms'    => $colores,
-					'operator' => count( $colores ) > 1 ? 'AND' : 'IN',
-				);
-			}
-		}
+				// Cada valor de color es un término independiente. "Vetas blancas"
+				// NO es equivalente al término "Blanco": se consulta por slug/ID exacto.
+				$color_slugs = array();
+				foreach ( $colores as $color ) {
+					$term = get_term_by( 'slug', sanitize_title( $color ), $color_taxonomy );
+					if ( ! $term ) {
+						$term = get_term_by( 'name', $color, $color_taxonomy );
+					}
+					if ( $term && ! is_wp_error( $term ) ) {
+						$color_slugs[] = $term->slug;
+					}
+				}
 
-		foreach ( $atributos as $slug => $value ) {
+				if ( empty( $color_slugs ) ) {
+					// Si el usuario pidió un color explícito y ese término no existe,
+					// devolvemos una consulta imposible: nunca debemos relajarla a
+					// productos aleatorios.
+					$clauses[] = array(
+						'taxonomy' => $color_taxonomy,
+						'field'    => 'term_id',
+						'terms'    => array( -1 ),
+						'operator' => 'IN',
+					);
+				} else {
+ 				$clauses[] = array(
+ 					'taxonomy' => $color_taxonomy,
+					'field'    => 'slug',
+					'terms'    => $color_slugs,
+ 					'operator' => count( $colores ) > 1 ? 'AND' : 'IN',
+ 				);
+				}
+ 			}
+ 		}
+ 
+ 		foreach ( $atributos as $slug => $value ) {
 			if ( '' === $value ) {
 				continue;
 			}
 			$taxonomy = taxonomy_exists( 'pa_' . $slug ) ? 'pa_' . $slug : $slug;
 			if ( ! taxonomy_exists( $taxonomy ) ) {
 				continue;
+ 			}
+
+			if ( 'formato' === $slug ) {
+				$term_ids = self::get_normalized_format_term_ids( $value );
+				$clauses[] = array(
+					'taxonomy' => $taxonomy,
+					'field'    => 'term_id',
+					'terms'    => ! empty( $term_ids ) ? $term_ids : array( -1 ),
+					'operator' => 'IN',
+				);
+				continue;
 			}
-			$clauses[] = array(
-				'taxonomy' => $taxonomy,
-				'field'    => 'name',
-				'terms'    => $value,
-			);
+
+			// Para el resto de atributos intentamos resolver primero el término real
+			// por slug. Esto evita coincidencias semánticas/parciales accidentales.
+			$term = get_term_by( 'slug', sanitize_title( $value ), $taxonomy );
+			if ( ! $term ) {
+				$term = get_term_by( 'name', $value, $taxonomy );
+			}
+
+ 			$clauses[] = array(
+ 				'taxonomy' => $taxonomy,
+				'field'    => $term ? 'term_id' : 'term_id',
+				'terms'    => $term ? array( (int) $term->term_id ) : array( -1 ),
+				'operator' => 'IN',
+ 			);
 		}
 
 		if ( empty( $clauses ) ) {
