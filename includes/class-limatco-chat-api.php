@@ -245,7 +245,7 @@ class Limatco_Chat_Api {
 			. '{"category": "<una de: ' . $category_list . ' o vacío>", "keywords": "<2-5 palabras>", "needs_search": <true|false>, '
 			. '"colores": [<lista de colores predominantes pedidos, ej ["blanco"] o ["blanco","gris"], vacío si no aplica>], '
 			. '"single_color_only": <true SOLO si el usuario pidió explícitamente un color puro/sin combinar, si no false>, '
-			. '"atributos": {"formato": "<ej. 60x60, o vacío>", "terminacion": "<ej. antideslizante/R10/R11, o vacío>", "estetica-o-diseno": "<ej. madera/cemento/decorado/monocolor, o vacío>", "acabado": "<ej. mate/satinado/texturado, o vacío>", "cantos-o-bordes": "<ej. rectificado/encastre, o vacío>", "caras-o-destonalizado": "<vacío salvo que el usuario lo pida explícito>"}}' . "\n\n"
+			. '"atributos": {"formato": "<ej. 60x60, o vacío>", "terminacion": "<ej. antideslizante/R10/R11, o vacío>", "estetica-o-diseno": "<ej. madera/madera tipo tabla/cemento/decorado/monocolor, o vacío>", "acabado": "<ej. mate/satinado/texturado, o vacío>", "cantos-o-bordes": "<ej. rectificado/encastre, o vacío>", "caras-o-destonalizado": "<vacío salvo que el usuario lo pida explícito>"}}' . "\n\n"
 			. "needs_search=false SOLO si el mensaje no trata de productos/servicios Limatco (saludos, agradecimientos, despedidas, small talk, preguntas del bot). Cualquier búsqueda/pregunta/respuesta de seguimiento sobre producto, aunque sea vaga, => true. Si false: category, keywords, colores y atributos van vacíos.\n\n"
 			. "Reglas de colores/atributos:\n"
 			. "- 'colores' son SOLO los colores predominantes reales del producto pedido (ej. 'cerámica blanca' -> [\"blanco\"]); no confundir con ambiente/estilo.\n"
@@ -253,11 +253,14 @@ class Limatco_Chat_Api {
 			. "- 'single_color_only' es true SOLO si el usuario dice explícitamente que sea de un solo color / puro / sin combinar / liso; en cualquier otro caso, false (aunque pida un solo color en la lista, igual puede combinar con otros a menos que lo pida expreso).\n"
 			. "- 'antideslizante' o 'que no resbale' (baño, terraza, piscina, exterior en general) -> atributos.terminacion = 'antideslizante'. Si mencionan un código R explícito (R9-R13), respétalo tal cual.\n"
 			. "- Si el usuario da una medida (ej. '19x57', '60x120'), va en atributos.formato tal cual la escribió.\n"
+			. "- 'tipo tabla' NO significa simplemente 'madera'. En este catálogo, cuando el usuario pide 'tipo tabla', 'tabla' o 'madera tipo tabla', usa atributos.estetica-o-diseno = 'madera tipo tabla'. Si además pide una medida, conserva también atributos.formato.\n"
+			. "- Si el usuario pide 'otras alternativas en otros formatos' pero mantiene 'tipo tabla', elimina SOLO el formato anterior y conserva estetica-o-diseno = 'madera tipo tabla'.\n"
+			. "- Una medida explícita (60x60, 60x120, 30x30, etc.) es un filtro obligatorio y no debe convertirse en una keyword.\n"
 			. "- No inventes ningún valor de atributo que el usuario no haya mencionado o insinuado con claridad; deja vacío si no aplica.\n\n"
 			. "Reglas de keywords:\n"
 			. "- Deben aparecer LITERAL en nombre/descripción del producto (se buscan por separado); solo términos que aporten.\n"
 			. "- Ambiente (dormitorio/living/sala/pieza/comedor/cocina/baño) -> 'interior'. Exterior (terraza/patio/jardín/piscina) -> 'exterior'. Tránsito alto/comercial/local/negocio -> 'alto tránsito'. Nivel PEI explícito -> respétalo tal cual (ej. 'PEI 4').\n"
-			. "- No inventes ni agregues color/tono/estilo como keyword (el color ya va en 'colores', no lo dupliques aquí) salvo que el usuario haya dado un término muy específico y ya haya funcionado antes en la conversación.\n"
+			. "- No inventes ni agregues color/tono/estilo como keyword (el color ya va en 'colores', la medida en formato y el diseño en estetica-o-diseno) salvo que el usuario haya dado un término muy específico y ya haya funcionado antes en la conversación.\n"
 			. "- Mensaje vago/confirmación sin términos nuevos ('todas las alternativas','cualquiera','sí','muéstrame más','recomiéndame') -> ignóralo como keyword y usa el producto/ambiente ya buscado en turnos previos. Nunca devuelvas la frase vaga tal cual.\n"
 			. "- Tono/estilo/diseño equivalen entre sí (ej. 'tono madera'='estilo madera'='diseño madera'): usa el término del cliente. 'Hidráulicos' = 'Decorados'.";
 
