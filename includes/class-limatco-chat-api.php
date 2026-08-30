@@ -254,16 +254,19 @@ class Limatco_Chat_Api {
 			. '{"category": "<una de: ' . $category_list . ' o vacío>", "keywords": "<2-5 palabras>", "needs_search": <true|false>, '
 			. '"colores": [<lista de colores predominantes pedidos, ej ["blanco"] o ["blanco","gris"], vacío si no aplica>], '
 			. '"single_color_only": <true SOLO si el usuario pidió explícitamente un color puro/sin combinar, si no false>, '
-			. '"atributos": {"formato": "<ej. 60x60, o vacío>", "terminacion": "<ej. antideslizante/R10/R11, o vacío>", "estetica-o-diseno": "<ej. madera/madera tipo tabla/cemento/decorado/monocolor, o vacío>", "acabado": "<ej. mate/satinado/texturado, o vacío>", "cantos-o-bordes": "<ej. rectificado/encastre, o vacío>", "caras-o-destonalizado": "<vacío salvo que el usuario lo pida explícito>"}}' . "\n\n"
+			. '"atributos": {"formato": "<ej. 60x60, o vacío>", "terminacion": "<ej. antideslizante/R10/R11, o vacío>", "estetica-o-diseno": "<ej. madera/madera tipo tabla/cemento/marmol/decorado/monocolor, o vacío>", "acabado": "<ej. mate/satinado/texturado, o vacío>", "cantos-o-bordes": "<ej. rectificado/encastre, o vacío>", "caras-o-destonalizado": "<vacío salvo que el usuario lo pida explícito>"}}' . "\n\n"
 			. "needs_search=false SOLO si el mensaje no trata de productos/servicios Limatco (saludos, agradecimientos, despedidas, small talk, preguntas del bot). Cualquier búsqueda/pregunta/respuesta de seguimiento sobre producto, aunque sea vaga, => true. Si false: category, keywords, colores y atributos van vacíos.\n\n"
 			. "Reglas de colores/atributos:\n"
-			. "- 'colores' son SOLO los colores predominantes reales del producto pedido (ej. 'cerámica blanca' -> [\"blanco\"]); no confundir con ambiente/estilo.\n"
-			. "- Si el usuario pide 2+ colores a la vez (ej. 'blanco y gris'), inclúyelos todos en la lista: el producto debe tener esa combinación completa.\n"
-			. "- 'single_color_only' es true SOLO si el usuario dice explícitamente que sea de un solo color / puro / sin combinar / liso; en cualquier otro caso, false (aunque pida un solo color en la lista, igual puede combinar con otros a menos que lo pida expreso).\n"
+			. "- 'colores' son SOLO los colores predominantes reales del producto (ej. 'cerámica blanca' -> [\"blanco\"]); no confundir con ambiente/estilo.\n"
+			. "- Si el usuario pide 2+ colores combinados a la vez (ej. 'blanco y gris'), ponlos en la lista SOLO si el usuario quiere esa combinación específica en el mismo producto. 'Blanca con detalles grises' o 'principalmente blanca con vetas grises' = [\"blanco\"] (el blanco es el predominante; el gris es un detalle secundario, NO un segundo color requerido).\n"
+			. "- 'single_color_only' es true SOLO si el usuario dice explícitamente que sea de un solo color / puro / sin combinar / liso; en cualquier otro caso, false.\n"
+			. "- Colores con calificador (ej. 'gris claro', 'gris oscuro', 'beige claro') -> mantener el calificador en el color: [\"gris claro\"]. No separar ni simplificar.\n"
 			. "- 'antideslizante' o 'que no resbale' (baño, terraza, piscina, exterior en general) -> atributos.terminacion = 'antideslizante'. Si mencionan un código R explícito (R9-R13), respétalo tal cual.\n"
 			. "- Si el usuario da una medida (ej. '19x57', '60x120'), va en atributos.formato tal cual la escribió.\n"
 			. "- 'tipo tabla' NO significa simplemente 'madera'. En este catálogo, cuando el usuario pide 'tipo tabla', 'tabla' o 'madera tipo tabla', usa atributos.estetica-o-diseno = 'madera tipo tabla'. Si además pide una medida, conserva también atributos.formato.\n"
 			. "- Si el usuario pide 'otras alternativas en otros formatos' pero mantiene 'tipo tabla', elimina SOLO el formato anterior y conserva estetica-o-diseno = 'madera tipo tabla'.\n"
+			. "- Estética/diseño: mapea las expresiones del usuario al valor más cercano de esta lista: madera / madera tipo tabla / cemento / mármol / decorado / monocolor / piedra / hidráulico / rústico. Ejemplos: 'tipo mármol' -> 'mármol', 'estilo piedra' -> 'piedra', 'aspecto cemento' -> 'cemento', 'imitación madera' -> 'madera', 'estampado' -> 'decorado', 'hidráulico' -> 'hidráulico'.\n"
+			. "- 'revestimiento' o 'revestimiento de pared': usa como keyword 'revestimiento'; NO lo pongas en estetica-o-diseno. La categoría puede ser cerámica o porcelanato según el material pedido.\n"
 			. "- Una medida explícita (60x60, 60x120, 30x30, etc.) es un filtro obligatorio y no debe convertirse en una keyword.\n"
 			. "- No inventes ningún valor de atributo que el usuario no haya mencionado o insinuado con claridad; deja vacío si no aplica.\n\n"
 			. "Reglas de keywords:\n"
