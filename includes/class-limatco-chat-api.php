@@ -99,6 +99,11 @@ class Limatco_Chat_Api {
 		if ( empty( $user_message ) ) {
 			error_log( 'Error 400' );
 			return new WP_REST_Response( array( 'error' => 'Mensaje vacío, escriba su consulta para que le podamos ayudar' ), 400 );
+			error_log(
+			    'LIMATCO QUERY [' . current_time( 'mysql' ) . '] ' .
+    			'Usuario: "' . $user_message . '" | ' .
+    			'Búsqueda ejecutada: "' . $term . '"'
+			);
 		}
 
 		$history = $request->get_param( 'history' );
@@ -132,6 +137,10 @@ class Limatco_Chat_Api {
 		// seguimiento (ej. el usuario responde "en dormitorio" a una pregunta
 		// aclaratoria previa) en vez de clasificar el mensaje aislado.
 		$classification = $this->classify_query( $api_key, $model, $user_message, $history );
+		error_log(
+    		'LIMATCO DEBUG - CLASSIFICATION: ' .
+    		wp_json_encode( $classification, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES )
+		);
 		if ( is_wp_error( $classification ) ) {
 			// Si falla la clasificación, seguimos igual pero sin filtro de categoría ni atributos.
 			$classification = array(
