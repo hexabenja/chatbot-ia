@@ -204,6 +204,7 @@ private static function get_normalized_format_term_ids( $value ) {
 
 		if ( '' === $keywords ) {
 			$products = self::run_single_term_query( $category_slug, '', $tax_query );
+			error_log( 'LIMATCO DEBUG - WC RESULTS (keywords vacías): ' . count( $products ) );
 			if ( empty( $products ) ) {
 				return $products;
 			}
@@ -224,6 +225,7 @@ private static function get_normalized_format_term_ids( $value ) {
 
 		foreach ( $terms as $term ) {
 			$found = self::run_single_term_query( $category_slug, $term, $tax_query );
+			error_log( 'LIMATCO DEBUG - WC RESULTS (término "' . $term . '"): ' . count( $found ) );
 			foreach ( $found as $product ) {
 				$id = $product->get_id();
 				if ( ! isset( $scored[ $id ] ) ) {
@@ -244,6 +246,7 @@ private static function get_normalized_format_term_ids( $value ) {
 		// Se mezcla ANTES de ordenar por score para que los empates queden en orden
 		// aleatorio (variedad de marca) en vez de siempre en el mismo orden.
 		shuffle( $entries );
+		error_log( 'LIMATCO DEBUG - AFTER SHUFFLE (top 10): ' . wp_json_encode( array_slice( $entries, 0, 10 ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
 		usort(
 			$entries,
 			function ( $a, $b ) {
@@ -319,6 +322,8 @@ private static function get_normalized_format_term_ids( $value ) {
 			);
 			$args['tax_query'] = $tax_query;
 		}
+
+		error_log( 'LIMATCO DEBUG - WC_ARGS: ' . wp_json_encode( $args, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
 
 		return wc_get_products( $args );
 	}
