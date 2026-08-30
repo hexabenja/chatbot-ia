@@ -33,6 +33,99 @@ class Limatco_Chat_Context {
 	);
 
 	/**
+ * Normaliza un string para comparar términos de taxonomía tolerando mayúsculas,
+ * tildes y espacios extra. Ej: "GRIS OSCURO" == "gris oscuro" == "Gris Oscuro".
+ * Se usa para resolver colores, estética, terminación y cualquier atributo cuyo
+ * nombre exacto en WooCommerce puede diferir de lo que devuelve el clasificador.
+ */
+private static function normalize_term( $value ) {
+	return mb_strtolower( trim( remove_accents( (string) $value ) ), 'UTF-8' );
+}
+
+/**
+ * Busca el term_id real de un término en una taxonomía comparando de forma
+ * normalizada (sin tildes, sin distinción de mayúsculas/minúsculas). Así,
+ * el clasificador puede devolver "gris oscuro" y matchear "GRIS OSCURO".
+ * Si no encuentra nada devuelve null (sin fallback a -1: eso lo decide el caller).
+ */
+private static function get_normalized_term_id( $value, $taxonomy ) {
+	if ( ! taxonomy_exists( $taxonomy ) ) {
+		return null;
+	}
+	$wanted = self::normalize_term( $value );
+	if ( '' === $wanted ) {
+		return null;
+	}
+	$terms = get_terms( array(
+		'taxonomy'   => $taxonomy,
+		'hide_empty' => false,
+		'number'     => 0,
+	) );
+	if ( is_wp_error( $terms ) || empty( $terms ) ) {
+		return null;
+	}
+	// Primero: coincidencia exacta normalizada (ej. "gris oscuro" == "GRIS OSCURO").
+	foreach ( $terms as $term ) {
+		if ( self::normalize_term( $term->name ) === $wanted ) {
+			return (int) $term->term_id;
+		}
+	}
+	// Segundo: coincidencia parcial — el término real CONTIENE lo que pidió el usuario.
+	// Ej. usuario pide "gris claro" y el término es "GRIS CLARO MATE" → igual matchea.
+	foreach ( $terms as $term ) {
+		if ( false !== strpos( self::normalize_term( $term->name ), $wanted ) ) {
+			return (int) $term->term_id;
+		}
+	}
+	// Tercero: lo que pidió el usuario CONTIENE el término real.
+	// Ej. usuario pide "mármol blanco" y el término es "Marmol" → matchea.
+	foreach ( $terms as $term ) {
+		$normalized_name = self::normalize_term( $term->name );
+		if ( mb_strlen( $normalized_name ) >= 4 && false !== strpos( $wanted, $normalized_name ) ) {
+			return (int) $term->term_id;
+		}
+	}
+	return null;
+}
+
+/**
+ * Como get_normalized_term_id pero devuelve TODOS los term_ids que coincidan,
+ * útil para colores: "gris" puede matchear "GRIS", "GRIS OSCURO", "GRIS CLARO".
+ * Cuando el usuario pide "gris" sin calificar, queremos incluir todas las variantes.
+ */
+private static function get_normalized_term_ids_all( $value, $taxonomy ) {
+	if ( ! taxonomy_exists( $taxonomy ) ) {
+		return array();
+	}
+	$wanted = self::normalize_term( $value );
+	if ( '' === $wanted ) {
+		return array();
+	}
+	$terms = get_terms( array(
+		'taxonomy'   => $taxonomy,
+		'hide_empty' => false,
+		'number'     => 0,
+	) );
+	if ( is_wp_error( $terms ) || empty( $terms ) ) {
+		return array();
+	}
+	$ids = array();
+	foreach ( $terms as $term ) {
+		$normalized_name = self::normalize_term( $term->name );
+		// El término real empieza con lo que pidió el usuario (ej. "gris" -> "GRIS", "GRIS OSCURO").
+		if ( 0 === strpos( $normalized_name, $wanted ) ) {
+			$ids[] = (int) $term->term_id;
+			continue;
+		}
+		// Coincidencia exacta completa (ej. "gris oscuro" -> "GRIS OSCURO").
+		if ( $normalized_name === $wanted ) {
+			$ids[] = (int) $term->term_id;
+		}
+	}
+	return $ids;
+}
+
+/**
  * Normaliza una medida para comparar "60x60", "60 X 60", "60×60 cm", etc.
  * La salida canónica es siempre "60x60".
  */
@@ -132,10 +225,10 @@ private static function get_normalized_format_term_ids( $value ) {
 
 		$tax_query = self::build_attribute_tax_query( $colores, $atributos );
 
-		// Los atributos son filtros estructurados. Si el usuario pidió un formato,
-		// color, terminación, etc., NO se eliminan silenciosamente en un fallback.
+		// Los atributos son filtros estructurados. Si el usuario pidi&#243; un formato,
+		// color, terminaci&#243;n, etc., NO se eliminan silenciosamente en un fallback.
 		// Es preferible informar que no hay coincidencias exactas antes que mostrar
-		// productos de otra medida/material/característica.
+		// productos de otra medida/material/caracter&#237;stica.
 		$products = array();
 		if ( ! empty( $tax_query ) ) {
 			$products = self::run_cascade( $category_slug, $keywords, $tax_query );
@@ -143,10 +236,20 @@ private static function get_normalized_format_term_ids( $value ) {
 			if ( $single_color_only && 1 === count( $colores ) ) {
 				$products = self::filter_single_color_only( $products, $colores[0] );
 			}
+
+			// Fallback de colores m&#250;ltiples: si la combinaci&#243;n AND exacta no dio
+			// resultados (ej. "blanco" AND "gris" = 0 productos), reintenta con
+			// solo el primer color (el predominante que mencion&#243; el usuario).
+			// Esto cubre frases como "blanca con detalles grises" donde el segundo
+			// color es un detalle y no un filtro obligatorio.
+			if ( empty( $products ) && count( $colores ) > 1 ) {
+				$tax_query_primary = self::build_attribute_tax_query( array( $colores[0] ), $atributos );
+				$products          = self::run_cascade( $category_slug, $keywords, $tax_query_primary );
+			}
 		}
 
-		// Solo usamos la búsqueda sin atributos cuando el usuario realmente no pidió
-		// ningún filtro estructurado.
+		// Solo usamos la b&#250;squeda sin atributos cuando el usuario realmente no pidi&#243;
+		// ning&#250;n filtro estructurado.
 		if ( empty( $products ) && empty( $tax_query ) ) {
 			$products = self::run_cascade( $category_slug, $keywords, array() );
 		}
@@ -413,36 +516,55 @@ private static function get_normalized_format_term_ids( $value ) {
 		if ( ! empty( $colores ) ) {
 			$color_taxonomy = taxonomy_exists( 'pa_colores-predominantes' ) ? 'pa_colores-predominantes' : 'colores-predominantes';
 			if ( taxonomy_exists( $color_taxonomy ) ) {
-				// Cada valor de color es un término independiente. "Vetas blancas"
-				// NO es equivalente al término "Blanco": se consulta por slug/ID exacto.
-				$color_slugs = array();
-				foreach ( $colores as $color ) {
-					$term = get_term_by( 'slug', sanitize_title( $color ), $color_taxonomy );
-					if ( ! $term ) {
-						$term = get_term_by( 'name', $color, $color_taxonomy );
+				// Resolución normalizada: tolera mayúsculas, tildes y nombres parciales.
+				// Un color como "gris claro" matchea "GRIS CLARO"; "gris" solo matchea
+				// todos los grises ("GRIS", "GRIS OSCURO", "GRIS CLARO") con IN.
+				if ( count( $colores ) === 1 ) {
+					// Un color: usamos get_normalized_term_ids_all para incluir variantes
+					// (ej. "gris" -> GRIS + GRIS OSCURO + GRIS CLARO).
+					$color_ids = self::get_normalized_term_ids_all( $colores[0], $color_taxonomy );
+					if ( empty( $color_ids ) ) {
+						// Color pedido no existe en el catálogo → consulta imposible.
+						$clauses[] = array(
+							'taxonomy' => $color_taxonomy,
+							'field'    => 'term_id',
+							'terms'    => array( -1 ),
+							'operator' => 'IN',
+						);
+					} else {
+						$clauses[] = array(
+							'taxonomy' => $color_taxonomy,
+							'field'    => 'term_id',
+							'terms'    => $color_ids,
+							'operator' => 'IN',
+						);
 					}
-					if ( $term && ! is_wp_error( $term ) ) {
-						$color_slugs[] = $term->slug;
-					}
-				}
-
-				if ( empty( $color_slugs ) ) {
-					// Si el usuario pidió un color explícito y ese término no existe,
-					// devolvemos una consulta imposible: nunca debemos relajarla a
-					// productos aleatorios.
-					$clauses[] = array(
-						'taxonomy' => $color_taxonomy,
-						'field'    => 'term_id',
-						'terms'    => array( -1 ),
-						'operator' => 'IN',
-					);
 				} else {
- 				$clauses[] = array(
- 					'taxonomy' => $color_taxonomy,
-					'field'    => 'slug',
-					'terms'    => $color_slugs,
- 					'operator' => count( $colores ) > 1 ? 'AND' : 'IN',
- 				);
+					// Múltiples colores: el producto debe tener CADA uno (AND).
+					// Usamos get_normalized_term_id (exacto) para cada color.
+					$all_found = true;
+					foreach ( $colores as $color ) {
+						$color_id = self::get_normalized_term_id( $color, $color_taxonomy );
+						if ( null === $color_id ) {
+							$all_found = false;
+							break;
+						}
+						$clauses[] = array(
+							'taxonomy' => $color_taxonomy,
+							'field'    => 'term_id',
+							'terms'    => array( $color_id ),
+							'operator' => 'IN',
+						);
+					}
+					if ( ! $all_found ) {
+						// Al menos un color no existe: consulta imposible.
+						$clauses = array( array(
+							'taxonomy' => $color_taxonomy,
+							'field'    => 'term_id',
+							'terms'    => array( -1 ),
+							'operator' => 'IN',
+						) );
+					}
 				}
  			}
  		}
@@ -467,19 +589,16 @@ private static function get_normalized_format_term_ids( $value ) {
 				continue;
 			}
 
-			// Para el resto de atributos intentamos resolver primero el término real
-			// por slug. Esto evita coincidencias semánticas/parciales accidentales.
-			$term = get_term_by( 'slug', sanitize_title( $value ), $taxonomy );
-			if ( ! $term ) {
-				$term = get_term_by( 'name', $value, $taxonomy );
-			}
+			// Resolución normalizada: tolera mayúsculas, tildes y nombres parciales.
+			// "mármol" matchea "Marmol"; "antideslizante" matchea "ANTIDESLIZANTE".
+			$term_id = self::get_normalized_term_id( $value, $taxonomy );
 
- 			$clauses[] = array(
- 				'taxonomy' => $taxonomy,
-				'field'    => $term ? 'term_id' : 'term_id',
-				'terms'    => $term ? array( (int) $term->term_id ) : array( -1 ),
+			$clauses[] = array(
+				'taxonomy' => $taxonomy,
+				'field'    => 'term_id',
+				'terms'    => null !== $term_id ? array( $term_id ) : array( -1 ),
 				'operator' => 'IN',
- 			);
+			);
 		}
 
 		if ( empty( $clauses ) ) {
