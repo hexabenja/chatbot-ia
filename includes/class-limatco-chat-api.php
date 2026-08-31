@@ -167,7 +167,8 @@ class Limatco_Chat_Api {
 				$classification['keywords'],
 				$classification['colores'],
 				$classification['single_color_only'],
-				$classification['atributos']
+				$classification['atributos'],
+				$classification['product_type']
 			);
 		} else {
 			$context_data = array(
@@ -252,6 +253,7 @@ class Limatco_Chat_Api {
 			. "en el contexto de los turnos previos (puede ser respuesta a una aclaración, no consulta aislada). "
 			. "Responde SOLO este JSON, sin texto extra:\n"
 			. '{"category": "<una de: ' . $category_list . ' o vacío>", "keywords": "<2-5 palabras>", "needs_search": <true|false>, '
+			. '"product_type": "<porcelanato|cerámica|revestimiento|adhesivo|o vacío si no lo mencionó explícitamente>", '
 			. '"colores": [<lista de colores predominantes pedidos, ej ["blanco"] o ["blanco","gris"], vacío si no aplica>], '
 			. '"single_color_only": <true SOLO si el usuario pidió explícitamente un color puro/sin combinar, si no false>, '
 			. '"atributos": {"formato": "<ej. 60x60, o vacío>", "terminacion": "<ej. antideslizante/R10/R11, o vacío>", "estetica-o-diseno": "<ej. madera/madera tipo tabla/cemento/marmol/decorado/monocolor, o vacío>", "acabado": "<ej. mate/satinado/texturado, o vacío>", "cantos-o-bordes": "<ej. rectificado/encastre, o vacío>", "caras-o-destonalizado": "<vacío salvo que el usuario lo pida explícito>"}}' . "\n\n"
@@ -342,6 +344,11 @@ class Limatco_Chat_Api {
 			'colores'           => $colores,
 			'single_color_only' => ! empty( $json['single_color_only'] ),
 			'atributos'         => $atributos,
+			// Tipo de producto explícito mencionado por el usuario ("porcelanato" o "cerámica").
+			// Se usa como keyword obligatoria en el paso 4 de la cascada (sin categoría)
+			// para evitar que una tax_query de color/formato devuelva productos del tipo
+			// equivocado cuando la categoría detectada fue incorrecta o ambigua.
+			'product_type'      => isset( $json['product_type'] ) ? sanitize_text_field( (string) $json['product_type'] ) : '',
 		);
 	}
 
