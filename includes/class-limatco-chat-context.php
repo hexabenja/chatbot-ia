@@ -215,7 +215,7 @@ private static function get_normalized_format_term_ids( $value ) {
 	 *         'products' es la data (imagen/precio/stock/oferta) para las
 	 *         tarjetas que el widget pinta debajo de la respuesta.
 	 */
-	public static function get_context_for_query( $category_slug, $keywords, $colores = array(), $single_color_only = false, $atributos = array() ) {
+	public static function get_context_for_query( $category_slug, $keywords, $colores = array(), $single_color_only = false, $atributos = array(), $product_type = '' ) {
 		if ( ! function_exists( 'wc_get_products' ) ) {
 			return array(
 				'text'     => 'WooCommerce no está activo en este sitio.',
@@ -223,35 +223,32 @@ private static function get_normalized_format_term_ids( $value ) {
 			);
 		}
 
-		$tax_query = self::build_attribute_tax_query( $colores, $atributos );
+		$attr_result     = self::build_attribute_tax_query( $colores, $atributos );
+		$tax_query       = $attr_result['tax_query'];
+		// Atributos no resueltos en taxonomía van a texto libre para no perder el filtro.
+		$merged_keywords = trim( $keywords . ' ' . implode( ' ', $attr_result['unresolved_keywords'] ) );
+		// product_type ancla el tipo de producto (porcelanato/cerámica) en la búsqueda
+		// de texto libre cuando la categoría detectada puede ser ambigua o incorrecta.
+		if ( ! empty( $product_type ) ) {
+			$merged_keywords = trim( $product_type . ' ' . $merged_keywords );
+		}
 
-		// Los atributos son filtros estructurados. Si el usuario pidi&#243; un formato,
-		// color, terminaci&#243;n, etc., NO se eliminan silenciosamente en un fallback.
-		// Es preferible informar que no hay coincidencias exactas antes que mostrar
-		// productos de otra medida/material/caracter&#237;stica.
 		$products = array();
 		if ( ! empty( $tax_query ) ) {
-			$products = self::run_cascade( $category_slug, $keywords, $tax_query );
+			$products = self::run_cascade( $category_slug, $merged_keywords, $tax_query );
 
 			if ( $single_color_only && 1 === count( $colores ) ) {
 				$products = self::filter_single_color_only( $products, $colores[0] );
 			}
 
-			// Fallback de colores m&#250;ltiples: si la combinaci&#243;n AND exacta no dio
-			// resultados (ej. "blanco" AND "gris" = 0 productos), reintenta con
-			// solo el primer color (el predominante que mencion&#243; el usuario).
-			// Esto cubre frases como "blanca con detalles grises" donde el segundo
-			// color es un detalle y no un filtro obligatorio.
 			if ( empty( $products ) && count( $colores ) > 1 ) {
-				$tax_query_primary = self::build_attribute_tax_query( array( $colores[0] ), $atributos );
-				$products          = self::run_cascade( $category_slug, $keywords, $tax_query_primary );
+				$attr_primary = self::build_attribute_tax_query( array( $colores[0] ), $atributos );
+				$products     = self::run_cascade( $category_slug, $merged_keywords, $attr_primary['tax_query'] );
 			}
 		}
 
-		// Solo usamos la b&#250;squeda sin atributos cuando el usuario realmente no pidi&#243;
-		// ning&#250;n filtro estructurado.
 		if ( empty( $products ) && empty( $tax_query ) ) {
-			$products = self::run_cascade( $category_slug, $keywords, array() );
+			$products = self::run_cascade( $category_slug, $merged_keywords, array() );
 		}
 
 		if ( empty( $products ) ) {
@@ -284,19 +281,20 @@ private static function get_normalized_format_term_ids( $value ) {
 		// Paso 1: categoría + keywords + atributos.
 		$products = self::search_products( $category_slug, $keywords, $tax_query );
 
-		// Paso 2: sin categoría, con keywords + atributos.
+		// Paso 2: sin categoría + keywords + atributos.
 		if ( empty( $products ) && ! empty( $category_slug ) && ! empty( $keywords ) ) {
 			$products = self::search_products( '', $keywords, $tax_query );
 		}
 
-		// Paso 3: categoría + atributos, sin keywords.
+		// Paso 3: categoría + atributos (sin keywords).
 		if ( empty( $products ) && ! empty( $category_slug ) ) {
 			$products = self::search_products( $category_slug, '', $tax_query );
 		}
 
 		// Paso 4: solo atributos, sin categoría ni keywords.
-		// Cubre el caso donde la categoría detectada es incorrecta y keywords está vacío:
-		// los pasos 2 y 3 no lo cubren (paso 2 exige keywords, paso 3 ya probó cat+atributos).
+		// Necesario cuando la categoría detectada es incorrecta y keywords está vacío
+		// (ej. "porcelanato negro para muro interior": categoría=lisos-y-esfumados,
+		// keywords="", tax_query correcta → los pasos 2 y 3 no llegan a probar sin cat).
 		if ( empty( $products ) && ! empty( $category_slug ) && ! empty( $tax_query ) ) {
 			$products = self::search_products( '', '', $tax_query );
 		}
@@ -521,102 +519,87 @@ private static function get_normalized_format_term_ids( $value ) {
 	 * @param array $atributos Filtros adicionales, slug => valor. Ej: ['formato' => '60x60'].
 	 */
 	private static function build_attribute_tax_query( $colores, $atributos ) {
-		$clauses = array();
+		$clauses             = array();
+		$unresolved_keywords = array();
 
 		if ( ! empty( $colores ) ) {
 			$color_taxonomy = taxonomy_exists( 'pa_colores-predominantes' ) ? 'pa_colores-predominantes' : 'colores-predominantes';
 			if ( taxonomy_exists( $color_taxonomy ) ) {
-				// Resolución normalizada: tolera mayúsculas, tildes y nombres parciales.
-				// Un color como "gris claro" matchea "GRIS CLARO"; "gris" solo matchea
-				// todos los grises ("GRIS", "GRIS OSCURO", "GRIS CLARO") con IN.
 				if ( count( $colores ) === 1 ) {
-					// Un color: usamos get_normalized_term_ids_all para incluir variantes
-					// (ej. "gris" -> GRIS + GRIS OSCURO + GRIS CLARO).
 					$color_ids = self::get_normalized_term_ids_all( $colores[0], $color_taxonomy );
-					if ( empty( $color_ids ) ) {
-						// Color pedido no existe en el catálogo → consulta imposible.
-						$clauses[] = array(
-							'taxonomy' => $color_taxonomy,
-							'field'    => 'term_id',
-							'terms'    => array( -1 ),
-							'operator' => 'IN',
-						);
-					} else {
+					if ( ! empty( $color_ids ) ) {
 						$clauses[] = array(
 							'taxonomy' => $color_taxonomy,
 							'field'    => 'term_id',
 							'terms'    => $color_ids,
 							'operator' => 'IN',
 						);
+					} else {
+						$unresolved_keywords[] = $colores[0];
 					}
 				} else {
-					// Múltiples colores: el producto debe tener CADA uno (AND).
-					// Usamos get_normalized_term_id (exacto) para cada color.
-					$all_found = true;
 					foreach ( $colores as $color ) {
 						$color_id = self::get_normalized_term_id( $color, $color_taxonomy );
-						if ( null === $color_id ) {
-							$all_found = false;
-							break;
+						if ( null !== $color_id ) {
+							$clauses[] = array(
+								'taxonomy' => $color_taxonomy,
+								'field'    => 'term_id',
+								'terms'    => array( $color_id ),
+								'operator' => 'IN',
+							);
+						} else {
+							$unresolved_keywords[] = $color;
 						}
-						$clauses[] = array(
-							'taxonomy' => $color_taxonomy,
-							'field'    => 'term_id',
-							'terms'    => array( $color_id ),
-							'operator' => 'IN',
-						);
-					}
-					if ( ! $all_found ) {
-						// Al menos un color no existe: consulta imposible.
-						$clauses = array( array(
-							'taxonomy' => $color_taxonomy,
-							'field'    => 'term_id',
-							'terms'    => array( -1 ),
-							'operator' => 'IN',
-						) );
 					}
 				}
- 			}
- 		}
- 
- 		foreach ( $atributos as $slug => $value ) {
+			}
+		}
+
+		foreach ( $atributos as $slug => $value ) {
 			if ( '' === $value ) {
 				continue;
 			}
 			$taxonomy = taxonomy_exists( 'pa_' . $slug ) ? 'pa_' . $slug : $slug;
 			if ( ! taxonomy_exists( $taxonomy ) ) {
+				$unresolved_keywords[] = $value;
 				continue;
- 			}
-
+			}
 			if ( 'formato' === $slug ) {
 				$term_ids = self::get_normalized_format_term_ids( $value );
+				if ( ! empty( $term_ids ) ) {
+					$clauses[] = array(
+						'taxonomy' => $taxonomy,
+						'field'    => 'term_id',
+						'terms'    => $term_ids,
+						'operator' => 'IN',
+					);
+				} else {
+					$unresolved_keywords[] = $value;
+				}
+				continue;
+			}
+			$term_id = self::get_normalized_term_id( $value, $taxonomy );
+			if ( null !== $term_id ) {
 				$clauses[] = array(
 					'taxonomy' => $taxonomy,
 					'field'    => 'term_id',
-					'terms'    => ! empty( $term_ids ) ? $term_ids : array( -1 ),
+					'terms'    => array( $term_id ),
 					'operator' => 'IN',
 				);
-				continue;
+			} else {
+				$unresolved_keywords[] = $value;
 			}
-
-			// Resolución normalizada: tolera mayúsculas, tildes y nombres parciales.
-			// "mármol" matchea "Marmol"; "antideslizante" matchea "ANTIDESLIZANTE".
-			$term_id = self::get_normalized_term_id( $value, $taxonomy );
-
-			$clauses[] = array(
-				'taxonomy' => $taxonomy,
-				'field'    => 'term_id',
-				'terms'    => null !== $term_id ? array( $term_id ) : array( -1 ),
-				'operator' => 'IN',
-			);
 		}
 
-		if ( empty( $clauses ) ) {
-			return array();
+		$tax_query = array();
+		if ( ! empty( $clauses ) ) {
+			$clauses['relation'] = 'AND';
+			$tax_query           = $clauses;
 		}
-
-		$clauses['relation'] = 'AND';
-		return $clauses;
+		return array(
+			'tax_query'           => $tax_query,
+			'unresolved_keywords' => $unresolved_keywords,
+		);
 	}
 
 	/**
