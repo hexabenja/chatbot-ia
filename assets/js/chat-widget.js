@@ -32,12 +32,59 @@
 		toggleBtn.setAttribute( 'aria-expanded', 'false' );
 	}
 
-	function appendMessage( role, text ) {
+	function appendMessage( role, text, noScroll ) {
 		var el = document.createElement( 'div' );
 		el.className = 'lac-msg ' + role;
 		el.innerHTML = text;
 		messagesEl.appendChild( el );
-		messagesEl.scrollTop = messagesEl.scrollHeight;
+		if ( ! noScroll ) {
+			messagesEl.scrollTop = messagesEl.scrollHeight;
+		}
+		return el;
+	}
+
+	// Burbuja de "pensando": 3 puntos animados en CSS puro.
+	function appendLoadingBubble() {
+		var el = document.createElement( 'div' );
+		el.className = 'lac-msg assistant lac-loading';
+		var dots = document.createElement( 'div' );
+		dots.className = 'lac-typing-dots';
+		dots.innerHTML = '<span></span><span></span><span></span>';
+		el.appendChild( dots );
+		messagesEl.appendChild( el );
+		// No forzar scroll: el usuario controla la posición.
+		return el;
+	}
+
+	// Typing animation: muestra el HTML carácter a carácter (sobre texto plano).
+	// El cursor parpadeante es puro CSS via clase lac-typing-text.
+	function appendWithTyping( html ) {
+		var el = document.createElement( 'div' );
+		el.className = 'lac-msg assistant lac-typing-text';
+		messagesEl.appendChild( el );
+
+		// Extraer texto plano para animar, luego setear HTML completo al terminar.
+		var tmp = document.createElement( 'div' );
+		tmp.innerHTML = html;
+		var plain = tmp.textContent || tmp.innerText || '';
+		var total = plain.length;
+		var i = 0;
+		var chunkSize = 3; // caracteres por frame: más rápido que 1 a 1
+		var delay = 18;    // ms por frame
+
+		function tick() {
+			i += chunkSize;
+			if ( i >= total ) {
+				// Terminó: poner HTML real y quitar cursor
+				el.innerHTML = html;
+				el.classList.remove( 'lac-typing-text' );
+				el.classList.add( 'lac-typing-done' );
+				return;
+			}
+			el.textContent = plain.slice( 0, i );
+			setTimeout( tick, delay );
+		}
+		setTimeout( tick, delay );
 		return el;
 	}
 
@@ -129,7 +176,6 @@
 		} );
 
 		messagesEl.appendChild( container );
-		messagesEl.scrollTop = messagesEl.scrollHeight;
 		return container;
 	}
 
@@ -172,7 +218,7 @@
 			.then( function ( result ) {
 				if ( result.ok && result.data && result.data.success ) {
 					btn.textContent = 'Producto agregado al carrito';
-					appendMessage( 'assistant', 'Se agregó "' + ( product.name || 'el producto' ) + '" al carrito.' );
+					appendMessage( 'assistant', 'Se agregó "' + ( product.name || 'el producto' ) + '" al carrito.', true );
 				} else {
 					btn.disabled = false;
 					btn.textContent = originalLabel;
@@ -188,11 +234,10 @@
 	}
 
 	function sendMessage( message ) {
-		appendMessage( 'user', message );
+		appendMessage( 'user', message ); // usuario: sí scrollea al fondo
 		history.push( { role: 'user', content: message } );
 
-		var loadingEl = appendMessage( 'assistant', 'Escribiendo…' );
-		loadingEl.classList.add( 'lac-loading' );
+		var loadingEl = appendLoadingBubble();
 
 		getFreshNonce().then( function ( nonce ) {
 			return fetch( lacChatConfig.restUrl, {
@@ -223,7 +268,7 @@
 					return;
 				}
 
-				appendMessage( 'assistant', result.data.reply );
+				appendWithTyping( result.data.reply );
 				history.push( { role: 'assistant', content: result.data.reply } );
 
 				if ( result.data.products && result.data.products.length ) {
