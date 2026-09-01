@@ -63,6 +63,7 @@
 .lac-messages {
 	flex: 1;
 	overflow-y: auto;
+	overflow-anchor: auto;
 	padding: 12px;
 	display: flex;
 	flex-direction: column;
@@ -94,8 +95,57 @@
 }
 
 .lac-msg.assistant.lac-loading {
-	font-style: italic;
-	opacity: 0.7;
+	font-style: normal;
+	opacity: 1;
+	background: transparent;
+	padding: 4px 0;
+	box-shadow: none;
+	border: none;
+}
+
+/* Burbujas de "pensando" */
+.lac-typing-dots {
+	display: flex;
+	gap: 5px;
+	align-items: center;
+	padding: 10px 14px;
+	background: #ececec;
+	border-radius: 12px;
+	border-bottom-left-radius: 2px;
+	width: fit-content;
+}
+.lac-typing-dots span {
+	display: block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #999;
+	animation: lac-bounce 1.2s infinite ease-in-out;
+}
+.lac-typing-dots span:nth-child(1) { animation-delay: 0s; }
+.lac-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.lac-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes lac-bounce {
+	0%, 80%, 100% { transform: scale(0.7); opacity: 0.5; }
+	40%            { transform: scale(1);   opacity: 1; }
+}
+
+/* Typing animation en el texto de respuesta */
+.lac-msg.assistant.lac-typing-text {
+	overflow: hidden;
+	white-space: pre-wrap;
+	border-right: 2px solid #555;
+	animation: lac-cursor-blink 0.6s step-end infinite;
+}
+.lac-msg.assistant.lac-typing-text.lac-typing-done {
+	border-right: none;
+	animation: none;
+}
+
+@keyframes lac-cursor-blink {
+	0%, 100% { border-color: #555; }
+	50%       { border-color: transparent; }
 }
 
 /* Tarjetas de producto (imagen, precio, stock, oferta) */
