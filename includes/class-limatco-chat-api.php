@@ -167,8 +167,7 @@ class Limatco_Chat_Api {
 				$classification['keywords'],
 				$classification['colores'],
 				$classification['single_color_only'],
-				$classification['atributos'],
-				$classification['product_type']
+				$classification['atributos']
 			);
 		} else {
 			$context_data = array(
@@ -192,9 +191,40 @@ class Limatco_Chat_Api {
 		$response = $this->call_gemini_api( $api_key, $model, $full_system, $messages, 1200 );
 
 		if ( is_wp_error( $response ) ) {
-			error_log( 'Error 502 posterior a la consulta del usuario, revisar api, modelo y o mensaje' );
-			return new WP_REST_Response( array( 'error' => 'Error al intentar crear una respuesta, vuelva a intentar en unos momentos,' ), 502 );
-		}
+
+    	$error_code    = $response->get_error_code();
+    	$error_message = $response->get_error_message();
+    	$error_data    = $response->get_error_data();
+
+    $http_code = is_array( $error_data ) && isset( $error_data['http_code'] )
+        ? $error_data['http_code']
+        : 'N/A';
+
+    $api_code = is_array( $error_data ) && isset( $error_data['api_code'] )
+        ? $error_data['api_code']
+        : 'N/A';
+
+    $status = is_array( $error_data ) && isset( $error_data['status'] )
+        ? $error_data['status']
+        : $error_code;
+
+    error_log(
+        sprintf(
+            '[GEMINI ERROR] HTTP: %s | API Code: %s | Status: %s | Message: %s',
+            $http_code,
+            $api_code,
+            $status,
+            $error_message
+        )
+    );
+
+    return new WP_REST_Response(
+        array(
+            'error' => 'Error al intentar crear una respuesta. Vuelva a intentar en unos momentos.'
+        ),
+        502
+    );
+}
 
 		return new WP_REST_Response(
 			array(
@@ -253,7 +283,6 @@ class Limatco_Chat_Api {
 			. "en el contexto de los turnos previos (puede ser respuesta a una aclaración, no consulta aislada). "
 			. "Responde SOLO este JSON, sin texto extra:\n"
 			. '{"category": "<una de: ' . $category_list . ' o vacío>", "keywords": "<2-5 palabras>", "needs_search": <true|false>, '
-			. '"product_type": "<porcelanato|cerámica|revestimiento|adhesivo|o vacío si no lo mencionó explícitamente>", '
 			. '"colores": [<lista de colores predominantes pedidos, ej ["blanco"] o ["blanco","gris"], vacío si no aplica>], '
 			. '"single_color_only": <true SOLO si el usuario pidió explícitamente un color puro/sin combinar, si no false>, '
 			. '"atributos": {"formato": "<ej. 60x60, o vacío>", "terminacion": "<ej. antideslizante/R10/R11, o vacío>", "estetica-o-diseno": "<ej. madera/madera tipo tabla/cemento/marmol/decorado/monocolor, o vacío>", "acabado": "<ej. mate/satinado/texturado, o vacío>", "cantos-o-bordes": "<ej. rectificado/encastre, o vacío>", "caras-o-destonalizado": "<vacío salvo que el usuario lo pida explícito>"}}' . "\n\n"
@@ -311,9 +340,41 @@ class Limatco_Chat_Api {
 
 		$category_name = isset( $json['category'] ) ? sanitize_text_field( $json['category'] ) : '';
 		$keywords      = isset( $json['keywords'] ) ? sanitize_text_field( $json['keywords'] ) : $user_message;
+		$product_type  = isset( $json['product_type'] ) ? sanitize_text_field( (string) $json['product_type'] ) : '';
 
-		// El modelo devuelve el NOMBRE de la categoría; lo convertimos a slug real.
+		// El modelo devuelve el NOMBRE de la categoría (posiblemente con prefijo padre
+		// "Cerámicas Piso > Marmolados y Decorados"). array_search busca el slug exacto.
 		$slug = array_search( $category_name, $categories, true );
+
+		// Si el slug no coincidió (el modelo devolvió solo el nombre corto sin prefijo,
+		// ej. "Marmolados y Decorados" en vez de "Cerámicas Piso > Marmolados y Decorados"),
+		// buscamos todos los slugs cuyo label termina en ese nombre y, si hay product_type,
+		// preferimos el que cuyo label contiene una palabra clave del tipo de producto.
+		if ( ! $slug && '' !== $category_name ) {
+			$pt_normalized = mb_strtolower( remove_accents( $product_type ), 'UTF-8' );
+			$candidates    = array();
+			foreach ( $categories as $cat_slug => $cat_label ) {
+				// El label puede ser "Padre > Nombre" o solo "Nombre".
+				$label_end = mb_strtolower( remove_accents( $cat_label ), 'UTF-8' );
+				$name_norm = mb_strtolower( remove_accents( $category_name ), 'UTF-8' );
+				if ( $label_end === $name_norm || substr( $label_end, -mb_strlen( $name_norm ) ) === $name_norm ) {
+					$candidates[ $cat_slug ] = $cat_label;
+				}
+			}
+			if ( count( $candidates ) === 1 ) {
+				$slug = array_key_first( $candidates );
+			} elseif ( count( $candidates ) > 1 && '' !== $pt_normalized ) {
+				// Varios slugs con el mismo nombre corto: elegir el que tenga product_type en el prefijo.
+				foreach ( $candidates as $cat_slug => $cat_label ) {
+					if ( false !== strpos( mb_strtolower( remove_accents( $cat_label ), 'UTF-8' ), $pt_normalized ) ) {
+						$slug = $cat_slug;
+						break;
+					}
+				}
+				// Si ninguno matcheó el product_type en el label, dejamos $slug en false
+				// para que la cascada busque sin categoría y product_type actúe como keyword.
+			}
+		}
 
 		// Colores predominantes pedidos, ya sanitizados; se descartan valores vacíos por si el modelo devuelve "" dentro del array.
 		$colores = array();
@@ -344,11 +405,7 @@ class Limatco_Chat_Api {
 			'colores'           => $colores,
 			'single_color_only' => ! empty( $json['single_color_only'] ),
 			'atributos'         => $atributos,
-			// Tipo de producto explícito mencionado por el usuario ("porcelanato" o "cerámica").
-			// Se usa como keyword obligatoria en el paso 4 de la cascada (sin categoría)
-			// para evitar que una tax_query de color/formato devuelva productos del tipo
-			// equivocado cuando la categoría detectada fue incorrecta o ambigua.
-			'product_type'      => isset( $json['product_type'] ) ? sanitize_text_field( (string) $json['product_type'] ) : '',
+			'product_type'      => $product_type,
 		);
 	}
 
