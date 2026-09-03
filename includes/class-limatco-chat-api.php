@@ -137,10 +137,7 @@ class Limatco_Chat_Api {
 		// seguimiento (ej. el usuario responde "en dormitorio" a una pregunta
 		// aclaratoria previa) en vez de clasificar el mensaje aislado.
 		$classification = $this->classify_query( $api_key, $model, $user_message, $history );
-		error_log(
-    		'LIMATCO DEBUG - CLASSIFICATION: ' .
-    		wp_json_encode( $classification, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES )
-		);
+
 		if ( is_wp_error( $classification ) ) {
 			// Si falla la clasificación, seguimos igual pero sin filtro de categoría ni atributos.
 			$classification = array(
@@ -167,7 +164,8 @@ class Limatco_Chat_Api {
 				$classification['keywords'],
 				$classification['colores'],
 				$classification['single_color_only'],
-				$classification['atributos']
+				$classification['atributos'],
+				$classification['product_type'] ?? ''
 			);
 		} else {
 			$context_data = array(
@@ -187,8 +185,32 @@ class Limatco_Chat_Api {
 			$full_system .= "\n\n--- Información de sucursales (dirección, teléfonos, horario). Responde solo con lo que se pregunte, no vuelques todo el listado salvo que el usuario pida ver todas las sucursales:\n" . self::BRANCHES_CONTEXT;
 		}
 
-		$messages = $this->build_messages( $history, $user_message );
-		$response = $this->call_gemini_api( $api_key, $model, $full_system, $messages, 1200 );
+		$messages    = $this->build_messages( $history, $user_message );
+		$t_start     = microtime( true );
+		$gemini_result = $this->call_gemini_api( $api_key, $model, $full_system, $messages, 1200 );
+		$t_elapsed   = round( microtime( true ) - $t_start, 2 );
+
+		// [01]-[10] structured debug log
+		$wc_count = count( $context_data['products'] );
+		$raw_data = ! is_wp_error( $gemini_result ) ? ( $gemini_result['raw'] ?? array() ) : array();
+		$usage    = $raw_data['usage'] ?? array();
+		$choice   = $raw_data['choices'][0] ?? array();
+		error_log( '[01] QUERY: '         . $user_message );
+		error_log( '[02] CLASSIFICATION: '. wp_json_encode( $classification, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
+		error_log( '[03] PROMPT: '        . mb_strlen( $full_system ) . ' chars' );
+		error_log( '[04] HISTORY: '       . count( $history ) . ' messages' );
+		error_log( '[05] WC_RESULTS: '    . $wc_count );
+		if ( ! is_wp_error( $gemini_result ) ) {
+			$finish      = $choice['finish_reason'] ?? 'N/A';
+			$out_tokens  = $usage['completion_tokens'] ?? ( $usage['output_tokens'] ?? 'N/A' );
+			$avg_logprob = $choice['logprobs']['content'][0]['logprob'] ?? 'N/A';
+			error_log( '[06] GEMINI: finish=' . $finish . ' | output_tokens=' . $out_tokens . ' | avg_logprob=' . $avg_logprob );
+			$safety = $raw_data['promptFeedback']['safetyRatings'] ?? array();
+			error_log( '[07] GEMINI_SAFETY: ' . wp_json_encode( $safety, JSON_UNESCAPED_UNICODE ) );
+			error_log( '[08] GEMINI_RESPONSE: ' . wp_json_encode( $choice['message'] ?? array(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
+		}
+
+		$response = is_wp_error( $gemini_result ) ? $gemini_result : $gemini_result['text'];
 
 		if ( is_wp_error( $response ) ) {
 
@@ -225,6 +247,9 @@ class Limatco_Chat_Api {
         502
     );
 }
+
+		error_log( '[09] FINAL_PRODUCTS: ' . count( $context_data['products'] ) );
+		error_log( '[10] TOTAL_TIME: '    . $t_elapsed . 's' );
 
 		return new WP_REST_Response(
 			array(
@@ -309,7 +334,7 @@ class Limatco_Chat_Api {
 
 
 		// Últimos turnos de mensajes alcanzan para resolver respuestas de seguimiento.
-		$recent_history = array_slice( $history, -6 ); // 6 mensajes hacia atrás
+		$recent_history = array_slice( $history, -4 ); // 4 mensajes: suficiente para follow-ups, menos contaminación
 
 		$messages = array();
 		foreach ( $recent_history as $turn ) {
@@ -327,12 +352,13 @@ class Limatco_Chat_Api {
 		}
 		$messages[] = array( 'role' => 'user', 'content' => $user_message );
 
-		$raw = $this->call_gemini_api( $api_key, $model, $system, $messages, 300 );
+		$raw_result = $this->call_gemini_api( $api_key, $model, $system, $messages, 300 );
 
-		if ( is_wp_error( $raw ) ) {
-			return $raw;
+		if ( is_wp_error( $raw_result ) ) {
+			return $raw_result;
 		}
 
+		$raw  = $raw_result['text'];
 		$json = json_decode( trim( $raw ), true );
 		if ( ! is_array( $json ) ) {
 			return new WP_Error( 'lac_classify_parse_error', 'No se pudo interpretar la clasificación.' );
@@ -542,7 +568,8 @@ class Limatco_Chat_Api {
 			return new WP_Error( 'lac_empty_reply', 'La API no devolvió texto.' );
 		}
 
-		return $text;
+		// Devolvemos texto + metadatos (usage, safety, finish_reason) para los logs [06]-[08].
+		return array( 'text' => $text, 'raw' => $data );
 	}
 
 	/**
