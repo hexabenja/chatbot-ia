@@ -27,18 +27,18 @@
 
 .lac-chat-window {
 	position: absolute;
-	bottom: 64px;
-	right: 0;
-	width: 340px;
-	max-width: 90vw;
-	height: 460px;
-	max-height: 70vh;
-	background: #fff;
-	border-radius: 14px;
-	box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
+    bottom: 64px;
+    right: 0;
+    width: 43vw;
+    max-width: 151vw;
+    height: 80vh;
+    max-height: 100vh;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .lac-chat-header {
@@ -150,11 +150,18 @@
 
 /* Tarjetas de producto (imagen, precio, stock, oferta) */
 .lac-products {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	align-self: stretch;
+	display: grid;
+    flex-direction: column;
+    gap: 8px;
+    grid-template-columns: repeat(2, 1fr);
+    align-self: stretch;
 }
+
+/* Columnas de productos responsive, 2 columnas en PC y 1 columna en smarthphones */
+@media (min-width: 768px) {
+  .lac-products {
+	grid-template-columns: repeat(1, 1fr);
+}}
 
 .lac-product-card {
 	position: relative;
