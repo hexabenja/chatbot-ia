@@ -48,7 +48,7 @@ class Limatco_Chat_Admin {
 				<?php settings_fields( 'lac_settings_group' ); ?>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row"><label for="lac_api_key">API Key (Anthropic)</label></th>
+						<th scope="row"><label for="lac_api_key">API Key (Gemini)</label></th>
 						<td>
 							<input type="password" id="lac_api_key" name="lac_api_key"
 								value="<?php echo esc_attr( get_option( 'lac_api_key', '' ) ); ?>"
@@ -62,11 +62,11 @@ class Limatco_Chat_Admin {
 							<input type="text" id="lac_model" name="lac_model"
 								value="<?php echo esc_attr( get_option( 'lac_model', 'claude-sonnet-5' ) ); ?>"
 								class="regular-text" />
-							<p class="description">Verifica el string de modelo vigente en docs.claude.com antes de publicar.</p>
+							<p class="description">Gemini Flash Lite 3.5 estándar</p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="lac_system_prompt">Prompt de sistema (instrucciones estrictas)</label></th>
+						<th scope="row"><label for="lac_system_prompt">Prompt de sistema (instrucciones estrictas en el contexto)</label></th>
 						<td>
 							<textarea id="lac_system_prompt" name="lac_system_prompt" rows="6" class="large-text"><?php
 								echo esc_textarea( get_option( 'lac_system_prompt', $default_prompt ) );
@@ -104,10 +104,10 @@ class Limatco_Chat_Admin {
 			<hr />
 			<h2>Catálogo / contexto (dinámico)</h2>
 			<p class="description">
-				Categorías de producto detectadas actualmente:
+				Categorías de producto detectadas actualmente: (Acorde a estas categorías va a responder)
 				<strong><?php
 					$cats = Limatco_Chat_Context::get_available_categories();
-					echo $cats ? esc_html( implode( ', ', $cats ) ) : 'ninguna (revisa que WooCommerce tenga productos publicados).';
+					echo $cats ? esc_html( implode( ', ', $cats ) ) : 'ninguna (no se detectan productos.)';
 				?></strong>
 			</p>
 		</div>
