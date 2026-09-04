@@ -64,7 +64,7 @@ class Limatco_Chat_Api {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( $this, 'handle_add_to_cart' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => '__return_true', // Activar o desactivar la respuesta (en caso de emergencias con spam)
 				'args'                => array(
 					'product_id' => array(
 						'required' => true,
@@ -185,6 +185,7 @@ class Limatco_Chat_Api {
 			$full_system .= "\n\n--- Información de sucursales (dirección, teléfonos, horario). Responde solo con lo que se pregunte, no vuelques todo el listado salvo que el usuario pida ver todas las sucursales:\n" . self::BRANCHES_CONTEXT;
 		}
 
+		// Debug completo de mensajes de IA, incluye Query, Clasificacion, Prompt, Historial, resultados, finalizacion, safety y respuesta.
 		$messages    = $this->build_messages( $history, $user_message );
 		$t_start     = microtime( true );
 		$gemini_result = $this->call_gemini_api( $api_key, $model, $full_system, $messages, 1200 );
@@ -247,7 +248,7 @@ class Limatco_Chat_Api {
         502
     );
 }
-
+		// Debug de productos finales post shuffle y tiempo total de incio a final.
 		error_log( '[09] FINAL_PRODUCTS: ' . count( $context_data['products'] ) );
 		error_log( '[10] TOTAL_TIME: '    . $t_elapsed . 's' );
 
@@ -334,7 +335,7 @@ class Limatco_Chat_Api {
 
 
 		// Últimos turnos de mensajes alcanzan para resolver respuestas de seguimiento.
-		$recent_history = array_slice( $history, -4 ); // 4 mensajes: suficiente para follow-ups, menos contaminación
+		$recent_history = array_slice( $history, -3 ); // Se pasó de 6 a 3 mensaje debido a que el historial acumulado puede arruinar las nuevas consultas con colores o demás taxonomias.
 
 		$messages = array();
 		foreach ( $recent_history as $turn ) {
@@ -352,13 +353,14 @@ class Limatco_Chat_Api {
 		}
 		$messages[] = array( 'role' => 'user', 'content' => $user_message );
 
-		$raw_result = $this->call_gemini_api( $api_key, $model, $system, $messages, 300 );
+		// Resultados en Json bruto
+		$raw_result = $this->call_gemini_api( $api_key, $model, $system, $messages, 1000 ); // Se aumenta el límite de 300 a 1000 tokens para evitar quedarse sin respuesta de productos, productos por query pasan de 5 a 10.
 
 		if ( is_wp_error( $raw_result ) ) {
 			return $raw_result;
 		}
 
-		$raw  = $raw_result['text'];
+		$raw  = $raw_result['text']; // Presentar json en texto. PENDIENTE: BUSCAR CÓMO EVITAR ATAQUES DE INYECCION DE JSON
 		$json = json_decode( trim( $raw ), true );
 		if ( ! is_array( $json ) ) {
 			return new WP_Error( 'lac_classify_parse_error', 'No se pudo interpretar la clasificación.' );
