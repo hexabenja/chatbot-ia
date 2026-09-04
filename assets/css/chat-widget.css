@@ -60,6 +60,7 @@
 	cursor: pointer;
 }
 
+/* el padding en messages es para dejar un espacio en el chat para que la persona cuando el chat le entregó respuesta sin estar tapada por el placeholder input */
 .lac-messages {
 	flex: 1;
 	overflow-y: auto;
@@ -69,6 +70,7 @@
 	flex-direction: column;
 	gap: 8px;
 	background: #f7f7f8;
+	padding-bottom: 9vh; 
 }
 
 .lac-msg {
