@@ -325,7 +325,8 @@
 	height: 36px;
 	border-radius: 50%;
 	cursor: pointer;
-	font-size: 14px;
+	font-size: 25px;
+    padding: 1px;
 }
 
 @media (max-width: 480px) {
