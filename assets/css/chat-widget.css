@@ -337,3 +337,61 @@
 		right: -4px;
 	}
 }
+
+/* Captcha matemático */
+.lac-captcha {
+	padding: 12px 14px;
+	border-top: 1px solid #e5e5e5;
+	background: #f7f7f8;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.lac-captcha-label {
+	font-size: 13px;
+	font-weight: 600;
+	color: #222;
+	margin: 0;
+}
+.lac-captcha-row {
+	display: flex;
+	gap: 8px;
+}
+.lac-captcha-input {
+	flex: 1;
+	border: 1px solid #ddd;
+	border-radius: 20px;
+	padding: 7px 14px;
+	font-size: 13px;
+	outline: none;
+	-moz-appearance: textfield;
+}
+.lac-captcha-input::-webkit-outer-spin-button,
+.lac-captcha-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.lac-captcha-input:focus { border-color: #0f7a3c; }
+.lac-captcha-btn {
+	border: none;
+	background: #0f7a3c;
+	color: #fff;
+	padding: 7px 16px;
+	border-radius: 20px;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+}
+.lac-captcha-btn:hover { background: #0a5e2e; }
+.lac-captcha-error {
+	font-size: 12px;
+	color: #b3261e;
+	margin: 0;
+}
+
+/* Contador de caracteres */
+.lac-char-counter {
+	font-size: 10px;
+	color: #aaa;
+	text-align: right;
+	padding: 0 10px 4px;
+	line-height: 1;
+}
+.lac-char-counter.lac-char-warn { color: #b3261e; }

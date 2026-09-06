@@ -8,22 +8,65 @@
 	var form       = document.getElementById( 'lac-form' );
 	var input      = document.getElementById( 'lac-input' );
 
+	var captchaEl     = document.getElementById( 'lac-captcha' );
+	var captchaInput  = document.getElementById( 'lac-captcha-input' );
+	var captchaSubmit = document.getElementById( 'lac-captcha-submit' );
+	var captchaQ      = document.getElementById( 'lac-captcha-question' );
+	var captchaErr    = document.getElementById( 'lac-captcha-error' );
+
 	if ( ! toggleBtn || ! chatWindow || ! form ) {
 		return;
 	}
 
 	// Historial en memoria: [{role: 'user'|'assistant', content: '...'}]
-	var history = [];
-	var welcomed = false;
+	var history        = [];
+	var welcomed       = false;
+	var captchaAnswer  = 0;
+	var captchaPassed  = lacChatConfig.userLoggedIn ? true : false; // usuarios logueados saltan captcha
 
 	function openChat() {
 		chatWindow.hidden = false;
 		toggleBtn.setAttribute( 'aria-expanded', 'true' );
-		input.focus();
+
+		if ( ! captchaPassed ) {
+			showCaptcha();
+			return;
+		}
 
 		if ( ! welcomed ) {
 			appendMessage( 'assistant', lacChatConfig.welcomeText );
 			welcomed = true;
+		}
+		input.focus();
+	}
+
+	function showCaptcha() {
+		var a = Math.floor( Math.random() * 9 ) + 1;
+		var b = Math.floor( Math.random() * 9 ) + 1;
+		captchaAnswer = a + b;
+		captchaQ.textContent = '¿Cuánto es ' + a + ' + ' + b + '?';
+		captchaErr.hidden = true;
+		captchaInput.value = '';
+		captchaEl.hidden = false;
+		form.hidden = true;
+		captchaInput.focus();
+	}
+
+	function verifyCaptcha() {
+		var answer = parseInt( captchaInput.value, 10 );
+		if ( answer === captchaAnswer ) {
+			captchaPassed = true;
+			captchaEl.hidden = true;
+			form.hidden = false;
+			if ( ! welcomed ) {
+				appendMessage( 'assistant', lacChatConfig.welcomeText );
+				welcomed = true;
+			}
+			input.focus();
+		} else {
+			captchaErr.hidden = false;
+			captchaInput.value = '';
+			captchaInput.focus();
 		}
 	}
 
@@ -31,6 +74,17 @@
 		chatWindow.hidden = true;
 		toggleBtn.setAttribute( 'aria-expanded', 'false' );
 	}
+
+	// Contador de caracteres en tiempo real
+	var charCounter = document.createElement( 'div' );
+	charCounter.className = 'lac-char-counter';
+	charCounter.textContent = '0 / 200';
+	form.parentNode.insertBefore( charCounter, form );
+	input.addEventListener( 'input', function () {
+		var len = input.value.length;
+		charCounter.textContent = len + ' / 200';
+		charCounter.classList.toggle( 'lac-char-warn', len >= 180 );
+	} );
 
 	function appendMessage( role, text, noScroll ) {
 		var el = document.createElement( 'div' );
@@ -279,6 +333,13 @@
 				loadingEl.remove();
 				appendMessage( 'assistant', 'No se pudo conectar. Intenta de nuevo en un momento.' );
 			} );
+	}
+
+	if ( captchaSubmit ) {
+		captchaSubmit.addEventListener( 'click', verifyCaptcha );
+		captchaInput.addEventListener( 'keydown', function ( e ) {
+			if ( e.key === 'Enter' ) { e.preventDefault(); verifyCaptcha(); }
+		} );
 	}
 
 	toggleBtn.addEventListener( 'click', function () {
