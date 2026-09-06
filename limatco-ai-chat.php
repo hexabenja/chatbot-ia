@@ -73,11 +73,12 @@ function lac_enqueue_assets() {
 		'lac-chat-widget',
 		'lacChatConfig',
 		array(
-			'restUrl'      => esc_url_raw( rest_url( 'limatco-chat/v1/message' ) ),
-			'nonce'        => wp_create_nonce( 'wp_rest' ),
-			'welcomeText'  => get_option( 'lac_welcome_text', '¡Hola! ¿En qué te puedo ayudar?' ),
-			'placeholder'  => get_option( 'lac_placeholder_text', 'Escribe tu pregunta…' ),
-			'buttonLabel'  => get_option( 'lac_button_label', 'Chat' ),
+			'restUrl'        => esc_url_raw( rest_url( 'limatco-chat/v1/message' ) ),
+			'nonce'          => wp_create_nonce( 'wp_rest' ),
+			'welcomeText'    => get_option( 'lac_welcome_text', '¡Hola! ¿En qué te puedo ayudar?' ),
+			'placeholder'    => get_option( 'lac_placeholder_text', 'Escribe tu pregunta…' ),
+			'buttonLabel'    => get_option( 'lac_button_label', 'Chat' ),
+			'userLoggedIn'   => is_user_logged_in(),
 		)
 	);
 }

@@ -20,6 +20,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 		<div id="lac-messages" class="lac-messages"></div>
 
+		<div id="lac-captcha" class="lac-captcha" hidden>
+			<p class="lac-captcha-label" id="lac-captcha-question"></p>
+			<div class="lac-captcha-row">
+				<input type="number" id="lac-captcha-input" class="lac-captcha-input" placeholder="Respuesta" autocomplete="off" />
+				<button type="button" id="lac-captcha-submit" class="lac-captcha-btn">Verificar</button>
+			</div>
+			<p class="lac-captcha-error" id="lac-captcha-error" hidden>Respuesta incorrecta, inténtalo de nuevo.</p>
+		</div>
+
 		<form id="lac-form" class="lac-form">
 			<input
 				type="text"
@@ -27,6 +36,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 				class="lac-input"
 				placeholder="<?php echo esc_attr( get_option( 'lac_placeholder_text', 'Escribe tu pregunta…' ) ); ?>"
 				autocomplete="off"
+				maxlength="200"
 				required
 			/>
 			<button type="submit" class="lac-send-btn" aria-label="Enviar">➤</button>
