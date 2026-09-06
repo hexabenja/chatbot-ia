@@ -105,6 +105,9 @@ class Limatco_Chat_Api {
     			'Búsqueda ejecutada: "' . $term . '"'
 			);
 		}
+		if ( mb_strlen( $user_message ) > 200 ) {
+			return new WP_REST_Response( array( 'error' => 'Mensaje demasiado largo (máximo 200 caracteres).' ), 400 );
+		}
 
 		$history = $request->get_param( 'history' );
 		if ( ! is_array( $history ) ) {
@@ -277,7 +280,7 @@ class Limatco_Chat_Api {
 		// En una request REST el carrito/sesión de WooCommerce no siempre queda inicializado como en una visita normal al frontend.
 		wc_load_cart();
 
-		$product_id = (int) $request->get_param( 'product_id' );
+		$product_id = absint( $request->get_param( 'product_id' ) );
 		$product    = wc_get_product( $product_id );
 
 		if ( ! $product || ! $product->is_purchasable() || ! $product->is_in_stock() ) {
