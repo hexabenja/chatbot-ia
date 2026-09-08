@@ -125,7 +125,6 @@
 			var productUrl = product.url || '#';
 			try {
 				var _u = new URL( productUrl );
-				_u.searchParams.set( 'utm_source', 'limatco' );
 				_u.searchParams.set( 'utm_medium', 'chatbot' );
 				productUrl = _u.toString();
 			} catch ( _e ) {}
@@ -214,7 +213,7 @@
 			viewBtn.href = productUrl;
 			viewBtn.target = '_blank';
 			viewBtn.rel = 'noopener';
-			viewBtn.textContent = 'Ver detalles';
+			viewBtn.textContent = 'Ver más';
 			viewBtn.addEventListener( 'click', function ( e ) {
 			e.stopPropagation();
 			} );
