@@ -214,7 +214,7 @@
 			viewBtn.href = productUrl;
 			viewBtn.target = '_blank';
 			viewBtn.rel = 'noopener';
-			viewBtn.textContent = 'Ver más';
+			viewBtn.textContent = 'Ver detalles';
 			viewBtn.addEventListener( 'click', function ( e ) {
 			e.stopPropagation();
 			} );
