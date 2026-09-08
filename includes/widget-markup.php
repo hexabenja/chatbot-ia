@@ -20,13 +20,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 		<div id="lac-messages" class="lac-messages"></div>
 
-		<div id="lac-captcha" class="lac-captcha" hidden>
-			<p class="lac-captcha-label" id="lac-captcha-question"></p>
-			<div class="lac-captcha-row">
-				<input type="number" id="lac-captcha-input" class="lac-captcha-input" placeholder="Respuesta" autocomplete="off" />
-				<button type="button" id="lac-captcha-submit" class="lac-captcha-btn">Verificar</button>
-			</div>
-			<p class="lac-captcha-error" id="lac-captcha-error" hidden>Respuesta incorrecta, inténtalo de nuevo.</p>
+		<div id="lac-captcha-overlay" class="lac-captcha-overlay" hidden>
+			<label class="lac-captcha-label" for="lac-captcha-check">
+				<span class="lac-captcha-box" id="lac-captcha-box" aria-hidden="true"></span>
+				<input type="checkbox" id="lac-captcha-check" class="lac-captcha-sr" />
+				No soy un robot
+			</label>
 		</div>
 
 		<form id="lac-form" class="lac-form">

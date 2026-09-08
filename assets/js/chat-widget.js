@@ -8,31 +8,31 @@
 	var form       = document.getElementById( 'lac-form' );
 	var input      = document.getElementById( 'lac-input' );
 
-	var captchaEl     = document.getElementById( 'lac-captcha' );
-	var captchaInput  = document.getElementById( 'lac-captcha-input' );
-	var captchaSubmit = document.getElementById( 'lac-captcha-submit' );
-	var captchaQ      = document.getElementById( 'lac-captcha-question' );
-	var captchaErr    = document.getElementById( 'lac-captcha-error' );
+	var captchaOverlay = document.getElementById( 'lac-captcha-overlay' );
+	var captchaCheck   = document.getElementById( 'lac-captcha-check' );
+	var captchaBox     = document.getElementById( 'lac-captcha-box' );
 
 	if ( ! toggleBtn || ! chatWindow || ! form ) {
 		return;
 	}
 
 	// Historial en memoria: [{role: 'user'|'assistant', content: '...'}]
-	var history        = [];
-	var welcomed       = false;
-	var captchaAnswer  = 0;
-	var captchaPassed  = lacChatConfig.userLoggedIn ? true : false; // usuarios logueados saltan captcha
+	var history     = [];
+	var welcomed    = false;
+	var captchaDone = lacChatConfig.userLoggedIn ? true : false; // logueados saltan captcha
 
 	function openChat() {
 		chatWindow.hidden = false;
 		toggleBtn.setAttribute( 'aria-expanded', 'true' );
 
-		if ( ! captchaPassed ) {
-			showCaptcha();
+		if ( ! captchaDone ) {
+			if ( captchaOverlay ) { captchaOverlay.hidden = false; }
+			form.hidden = true;
 			return;
 		}
 
+		if ( captchaOverlay ) { captchaOverlay.hidden = true; }
+		form.hidden = false;
 		if ( ! welcomed ) {
 			appendMessage( 'assistant', lacChatConfig.welcomeText );
 			welcomed = true;
@@ -40,35 +40,6 @@
 		input.focus();
 	}
 
-	function showCaptcha() {
-		var a = Math.floor( Math.random() * 9 ) + 1;
-		var b = Math.floor( Math.random() * 9 ) + 1;
-		captchaAnswer = a + b;
-		captchaQ.textContent = '¿Cuánto es ' + a + ' + ' + b + '?';
-		captchaErr.hidden = true;
-		captchaInput.value = '';
-		captchaEl.hidden = false;
-		form.hidden = true;
-		captchaInput.focus();
-	}
-
-	function verifyCaptcha() {
-		var answer = parseInt( captchaInput.value, 10 );
-		if ( answer === captchaAnswer ) {
-			captchaPassed = true;
-			captchaEl.hidden = true;
-			form.hidden = false;
-			if ( ! welcomed ) {
-				appendMessage( 'assistant', lacChatConfig.welcomeText );
-				welcomed = true;
-			}
-			input.focus();
-		} else {
-			captchaErr.hidden = false;
-			captchaInput.value = '';
-			captchaInput.focus();
-		}
-	}
 
 	function closeChat() {
 		chatWindow.hidden = true;
@@ -335,10 +306,21 @@
 			} );
 	}
 
-	if ( captchaSubmit ) {
-		captchaSubmit.addEventListener( 'click', verifyCaptcha );
-		captchaInput.addEventListener( 'keydown', function ( e ) {
-			if ( e.key === 'Enter' ) { e.preventDefault(); verifyCaptcha(); }
+	if ( captchaCheck ) {
+		captchaCheck.addEventListener( 'change', function () {
+			if ( captchaCheck.checked ) {
+				captchaDone = true;
+				if ( captchaBox ) { captchaBox.classList.add( 'lac-captcha-checked' ); }
+				setTimeout( function () {
+					if ( captchaOverlay ) { captchaOverlay.hidden = true; }
+					form.hidden = false;
+					if ( ! welcomed ) {
+						appendMessage( 'assistant', lacChatConfig.welcomeText );
+						welcomed = true;
+					}
+					input.focus();
+				}, 350 );
+			}
 		} );
 	}
 
