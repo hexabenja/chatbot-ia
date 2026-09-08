@@ -121,9 +121,18 @@
 		container.className = 'lac-products';
 
 		products.forEach( function ( product ) {
+			// Añade utm_source=limatco&utm_medium=chatbot a la URL del producto.
+			var productUrl = product.url || '#';
+			try {
+				var _u = new URL( productUrl );
+				_u.searchParams.set( 'utm_source', 'limatco' );
+				_u.searchParams.set( 'utm_medium', 'chatbot' );
+				productUrl = _u.toString();
+			} catch ( _e ) {}
+
 			var card = document.createElement( 'a' );
 			card.className = 'lac-product-card';
-			card.href = product.url || '#';
+			card.href = productUrl;
 			card.target = '_blank';
 			card.rel = 'noopener';
 
@@ -183,7 +192,11 @@
 				info.appendChild( saleBox );
 			}
 
-			// La tarjeta completa es un <a> (abre la ficha del producto), así que el clic del botón de carrito no debe llevar a la ficha
+			// Fila de botones: "Agregar al carrito" + "Ver más".
+			// La tarjeta es un <a>, así que los clics de botón deben stopPropagation.
+			var btnRow = document.createElement( 'div' );
+			btnRow.className = 'lac-card-btn-row';
+
 			var addBtn = document.createElement( 'button' );
 			addBtn.type = 'button';
 			addBtn.className = 'lac-add-cart-btn';
@@ -194,7 +207,20 @@
 				e.stopPropagation();
 				addToCart( product, addBtn );
 			} );
-			info.appendChild( addBtn );
+			btnRow.appendChild( addBtn );
+
+			var viewBtn = document.createElement( 'a' );
+			viewBtn.className = 'lac-view-btn';
+			viewBtn.href = productUrl;
+			viewBtn.target = '_blank';
+			viewBtn.rel = 'noopener';
+			viewBtn.textContent = 'Ver más';
+			viewBtn.addEventListener( 'click', function ( e ) {
+			e.stopPropagation();
+			} );
+			btnRow.appendChild( viewBtn );
+
+			info.appendChild( btnRow );
 
 			card.appendChild( info );
 			container.appendChild( card );
