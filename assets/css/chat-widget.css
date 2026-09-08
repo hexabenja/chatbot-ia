@@ -309,21 +309,21 @@
 }
 
 .lac-view-btn {
-	display: inline-block;
-	border: 1.5px solid #e0263e;
-	border-radius: 8px;
-	background: #fff;
-	color: #e0263e;
-	font-size: 11.5px;
-	font-weight: 700;
-	padding: 6px 12px;
-	text-decoration: none;
-	cursor: pointer;
-	white-space: nowrap;
-	transition: background 0.15s, color 0.15s;
+	margin-left: 6px;
+    align-self: auto;
+    margin-top: 4px;
+    background: #ffffff;
+    color: #ff0000;
+    font-size: 13.5px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: red, solid, 3px;
+    text-decoration: none;
 }
 .lac-view-btn:hover {
-	background: #e0263e;
+	background: #76222d;
 	color: #fff;
 }
 
