@@ -321,8 +321,10 @@
 				appendWithTyping( result.data.reply );
 				history.push( { role: 'assistant', content: result.data.reply } );
 
+				//  Además de mostrar tarjetas de productos muestra más variedad
 				if ( result.data.products && result.data.products.length ) {
 					renderProductCards( result.data.products );
+					renderSeeMoreCard( result.data.search_links );
 				}
 			} )
 			.catch( function () {
@@ -370,4 +372,34 @@
 		input.value = '';
 		sendMessage( message );
 	} );
+	+
+	// Tarjeta final "¿Quieres ver más?" con enlaces a la categoría y/o atributos para ver más
+	function renderSeeMoreCard( links ) {
+		if ( ! links || ! links.length ) { return; }
+		var wrapper = document.createElement( 'div' );
+		wrapper.className = 'lac-see-more-card';
+
+		var title = document.createElement( 'p' );
+		title.className = 'lac-see-more-title';
+		title.textContent = '¿Quieres ver más?';
+		wrapper.appendChild( title );
+
+		var row = document.createElement( 'div' );
+		row.className = 'lac-see-more-row';
+
+		links.forEach( function ( link ) {
+			var a = document.createElement( 'a' );
+			a.className = 'lac-see-more-link' + ( link.type === 'category' ? ' lac-see-more-cat' : ' lac-see-more-attr' );
+			a.href      = link.url;
+			a.target    = '_blank';
+			a.rel       = 'noopener';
+			a.textContent = link.label;
+			row.appendChild( a );
+		} );
+
+		wrapper.appendChild( row );
+		messagesEl.appendChild( wrapper );
+		messagesEl.scrollTop = messagesEl.scrollHeight;
+	}
+
 })();
