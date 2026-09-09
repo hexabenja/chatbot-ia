@@ -488,7 +488,7 @@ class Limatco_Chat_Api {
 	private function build_messages( $history, $user_message ) {
 		$raw = array();
 
-		$max_turns = 10;
+		$max_turns = 4; 
 		$history   = array_slice( $history, -1 * $max_turns * 2 );
 
 		foreach ( $history as $turn ) {
