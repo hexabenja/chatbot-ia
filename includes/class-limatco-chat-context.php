@@ -768,4 +768,34 @@ private static function get_normalized_format_term_ids( $value ) {
 
 		return '';
 	}
+
+	/**
+	 * Busca un término en una taxonomía con matching normalizado (tolera tildes y
+	 * mayúsculas) y devuelve el objeto WP_Term para poder obtener su get_term_link().
+	 * Usado por handle_message para construir los search_links de la tarjeta final.
+	 */
+	public static function get_public_term( $value, $taxonomy ) {
+		$wanted = self::normalize_term( $value );
+		$terms  = get_terms( array(
+			'taxonomy'   => $taxonomy,
+			'hide_empty' => false,
+			'number'     => 0,
+		) );
+		if ( is_wp_error( $terms ) || empty( $terms ) ) {
+			return null;
+		}
+		// Coincidencia exacta normalizada primero.
+		foreach ( $terms as $term ) {
+			if ( self::normalize_term( $term->name ) === $wanted ) {
+				return $term;
+			}
+		}
+		// Coincidencia parcial: término real contiene el valor buscado.
+		foreach ( $terms as $term ) {
+			if ( false !== strpos( self::normalize_term( $term->name ), $wanted ) ) {
+				return $term;
+			}
+		}
+		return null;
+	}
 }
