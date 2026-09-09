@@ -372,7 +372,7 @@
 		input.value = '';
 		sendMessage( message );
 	} );
-	+
+	
 	// Tarjeta final "¿Quieres ver más?" con enlaces a la categoría y/o atributos para ver más
 	function renderSeeMoreCard( links ) {
 		if ( ! links || ! links.length ) { return; }
