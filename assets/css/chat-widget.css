@@ -437,3 +437,57 @@
 	line-height: 1;
 }
 .lac-char-counter.lac-char-warn { color: #b3261e; }
+
+
+/* ── Tarjeta "¿Quieres ver más?" ─────────────────────────────────────────── */
+.lac-see-more-card {
+	background: #fff;
+	border: 1px solid #e5e5e5;
+	border-radius: 10px;
+	padding: 12px 14px;
+	align-self: stretch;
+}
+
+.lac-see-more-title {
+	font-size: 12px;
+	font-weight: 700;
+	color: #555;
+	margin: 0 0 8px 0;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.lac-see-more-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+/* Botón categoría: fondo verde Limatco */
+.lac-see-more-link {
+	display: inline-block;
+	padding: 6px 14px;
+	border-radius: 20px;
+	font-size: 12px;
+	font-weight: 600;
+	text-decoration: none;
+	white-space: nowrap;
+	transition: opacity 0.15s;
+}
+.lac-see-more-link:hover { opacity: 0.85; }
+.lac-see-more-cat {
+	background: #0f7a3c;
+	color: #fff;
+}
+
+/* Botón atributo: borde rojo, fondo blanco */
+.lac-see-more-attr {
+	border: 1.5px solid #e0263e;
+	background: #fff;
+	color: #e0263e;
+}
+.lac-see-more-attr:hover {
+	background: #e0263e;
+	color: #fff;
+}
+
