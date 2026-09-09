@@ -251,14 +251,58 @@ class Limatco_Chat_Api {
         502
     );
 }
-		// Debug de productos finales post shuffle y tiempo total de incio a final.
+		// Debug de productos finales post shuffle y tiempo total de incio a final. (solo cuando hay tarjetas de productos)
 		error_log( '[09] FINAL_PRODUCTS: ' . count( $context_data['products'] ) );
 		error_log( '[10] TOTAL_TIME: '    . $t_elapsed . 's' );
 
+		// Construye los enlaces de "Ver más en catálogo" basados en la categoría y atributos
+		$search_links = array();
+		if ( ! empty( $classification['needs_search'] ) && count( $context_data['products'] ) > 0 ) {
+			// Enlace de categoría: página de archivo WooCommerce de esa categoría.
+			if ( ! empty( $classification['category'] ) ) {
+				$cat_term = get_term_by( 'slug', $classification['category'], 'product_cat' );
+				if ( $cat_term && ! is_wp_error( $cat_term ) ) {
+					$cat_url = get_term_link( $cat_term );
+					if ( ! is_wp_error( $cat_url ) ) {
+						$search_links[] = array(
+							'label' => $cat_term->name,
+							'url'   => add_query_arg( array( 'utm_medium' => 'chatbot' ), $cat_url ),
+							'type'  => 'category',
+						);
+					}
+				}
+			}
+			// Enlace por atributo: página de archivo de la taxonomía de atributo WC.
+			if ( ! empty( $classification['atributos'] ) && is_array( $classification['atributos'] ) ) {
+				foreach ( $classification['atributos'] as $attr_slug => $attr_value ) {
+					if ( '' === $attr_value ) {
+						continue;
+					}
+					$taxonomy = taxonomy_exists( 'pa_' . $attr_slug ) ? 'pa_' . $attr_slug : $attr_slug;
+					if ( ! taxonomy_exists( $taxonomy ) ) {
+						continue;
+					}
+					$attr_term = Limatco_Chat_Context::get_public_term( $attr_value, $taxonomy );
+					if ( $attr_term ) {
+						$attr_url = get_term_link( $attr_term );
+						if ( ! is_wp_error( $attr_url ) ) {
+							$search_links[] = array(
+								'label' => $attr_term->name,
+								'url'   => add_query_arg( array( 'utm_medium' => 'chatbot' ), $attr_url ),
+								'type'  => 'attribute',
+							);
+						}
+					}
+				}
+			}
+		}
+
+
 		return new WP_REST_Response(
 			array(
-				'reply'    => $this->markdown_to_html( $response ),
-				'products' => $context_data['products'],
+				'reply'        => $this->markdown_to_html( $response ),
+				'products'     => $context_data['products'],
+				'search_links' => $search_links,
 			),
 			200
 		);
