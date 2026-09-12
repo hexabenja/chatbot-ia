@@ -475,12 +475,31 @@
 	transition: opacity 0.15s;
 }
 .lac-see-more-link:hover { opacity: 0.85; }
+/* Categoría: Color verde */
 .lac-see-more-cat {
 	background: #0f7a3c;
 	color: #fff;
 }
 
-/* Botón atributo: borde rojo, fondo blanco */
+/* Query sola: Color gris */
+.lac-see-more-query {
+	background: #444;
+	color: #fff;
+}
+.lac-see-more-query:hover { opacity: 0.85; }
+
+/* Categoría + query combinado: borde verde */
+.lac-see-more-combined {
+	border: 1.5px solid #0f7a3c;
+	background: #fff;
+	color: #0f7a3c;
+}
+.lac-see-more-combined:hover {
+	background: #0f7a3c;
+	color: #fff;
+}
+
+/* Fallback attr (por compatibilidad) */
 .lac-see-more-attr {
 	border: 1.5px solid #e0263e;
 	background: #fff;
