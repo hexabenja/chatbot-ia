@@ -255,43 +255,77 @@ class Limatco_Chat_Api {
 		error_log( '[09] FINAL_PRODUCTS: ' . count( $context_data['products'] ) );
 		error_log( '[10] TOTAL_TIME: '    . $t_elapsed . 's' );
 
-		// Construye los enlaces de "Ver más en catálogo" basados en la categoría y atributos
+		// Construye los enlaces de "Ver más en catálogo":
+		// 1. URL de la categoría WC (archivo de la familia detectada).
+		// 2. URL de búsqueda query /?s=valor&post_type=product por cada atributo.
+		// 3. URL combinada: categoría + query del atributo en la misma URL.
 		$search_links = array();
 		if ( ! empty( $classification['needs_search'] ) && count( $context_data['products'] ) > 0 ) {
-			// Enlace de categoría: página de archivo WooCommerce de esa categoría.
+
+			$cat_url = '';
+			$cat_label = '';
+
+			// ── Categoría ──────────────────────────────────────────────────────
 			if ( ! empty( $classification['category'] ) ) {
 				$cat_term = get_term_by( 'slug', $classification['category'], 'product_cat' );
 				if ( $cat_term && ! is_wp_error( $cat_term ) ) {
-					$cat_url = get_term_link( $cat_term );
-					if ( ! is_wp_error( $cat_url ) ) {
+					$raw_cat_url = get_term_link( $cat_term );
+					if ( ! is_wp_error( $raw_cat_url ) ) {
+						$cat_url   = $raw_cat_url;
+						$cat_label = $cat_term->name;
 						$search_links[] = array(
-							'label' => $cat_term->name,
+							'label' => $cat_label,
 							'url'   => add_query_arg( array( 'utm_medium' => 'chatbot' ), $cat_url ),
 							'type'  => 'category',
 						);
 					}
 				}
 			}
-			// Enlace por atributo: página de archivo de la taxonomía de atributo WC.
+
+			// ── Atributos: query sola + categoría+query ─────────────────────────
+			// En vez de buscar por taxonomía de atributo, se genera una búsqueda
+			// ?s=valor&post_type=product para que el usuario vea los resultados
+			// de búsqueda nativos de WooCommerce con ese término.
 			if ( ! empty( $classification['atributos'] ) && is_array( $classification['atributos'] ) ) {
 				foreach ( $classification['atributos'] as $attr_slug => $attr_value ) {
 					if ( '' === $attr_value ) {
 						continue;
 					}
-					$taxonomy = taxonomy_exists( 'pa_' . $attr_slug ) ? 'pa_' . $attr_slug : $attr_slug;
-					if ( ! taxonomy_exists( $taxonomy ) ) {
-						continue;
-					}
-					$attr_term = Limatco_Chat_Context::get_public_term( $attr_value, $taxonomy );
-					if ( $attr_term ) {
-						$attr_url = get_term_link( $attr_term );
-						if ( ! is_wp_error( $attr_url ) ) {
-							$search_links[] = array(
-								'label' => $attr_term->name,
-								'url'   => add_query_arg( array( 'utm_medium' => 'chatbot' ), $attr_url ),
-								'type'  => 'attribute',
-							);
-						}
+
+					$search_term = sanitize_text_field( $attr_value );
+
+					// Link 2: solo query — home_url() + ?s=valor&post_type=product
+					$query_only_url = add_query_arg(
+						array(
+							's'             => $search_term,
+							'post_type'     => 'product',
+							'utm_source'    => 'limatco',
+							'utm_medium'    => 'chatbot',
+						),
+						home_url( '/' )
+					);
+					$search_links[] = array(
+						'label' => $search_term,
+						'url'   => $query_only_url,
+						'type'  => 'search_query',
+					);
+
+					// Link 3: categoría + query — solo si tenemos URL de categoría
+					if ( '' !== $cat_url ) {
+						$combined_url = add_query_arg(
+							array(
+								's'          => $search_term,
+								'post_type'  => 'product',
+								'utm_source' => 'limatco',
+								'utm_medium' => 'chatbot',
+							),
+							$cat_url
+						);
+						$search_links[] = array(
+							'label' => $cat_label . ' · ' . $search_term,
+							'url'   => $combined_url,
+							'type'  => 'category_query',
+						);
 					}
 				}
 			}
