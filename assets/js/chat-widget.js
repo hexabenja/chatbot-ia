@@ -389,7 +389,12 @@
 
 		links.forEach( function ( link ) {
 			var a = document.createElement( 'a' );
-			a.className = 'lac-see-more-link' + ( link.type === 'category' ? ' lac-see-more-cat' : ' lac-see-more-attr' );
+			var typeClass = {
+				'category'       : ' lac-see-more-cat',
+				'search_query'   : ' lac-see-more-query',
+				'category_query' : ' lac-see-more-combined',
+			}[ link.type ] || ' lac-see-more-attr';
+			a.className = 'lac-see-more-link' + typeClass;
 			a.href      = link.url;
 			a.target    = '_blank';
 			a.rel       = 'noopener';
