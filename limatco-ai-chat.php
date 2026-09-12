@@ -53,6 +53,17 @@ function lac_enqueue_assets() {
 	if ( empty( $api_key ) ) {
 		return;
 	}
+	
+	// Gate global: chatbot desactivado desde el panel.
+	if ( ! get_option( 'lac_enabled', 1 ) ) {
+		return;
+	}
+
+	// Gate de página: si hay una página específica configurada, solo cargar ahí.
+	$allowed_page_id = (int) get_option( 'lac_allowed_page_id', 0 );
+	if ( $allowed_page_id > 0 && ! is_page( $allowed_page_id ) ) {
+		return;
+	}
 
 	wp_enqueue_style(
 		'lac-chat-widget',
@@ -90,6 +101,13 @@ add_action( 'wp_enqueue_scripts', 'lac_enqueue_assets' );
 function lac_render_widget_markup() {
 	$api_key = get_option( 'lac_api_key', '' );
 	if ( empty( $api_key ) ) {
+		return;
+	}
+	if ( ! get_option( 'lac_enabled', 1 ) ) {
+		return;
+	}
+	$allowed_page_id = (int) get_option( 'lac_allowed_page_id', 0 );
+	if ( $allowed_page_id > 0 && ! is_page( $allowed_page_id ) ) {
 		return;
 	}
 	include LAC_PLUGIN_DIR . 'includes/widget-markup.php';
