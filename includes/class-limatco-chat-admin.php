@@ -257,7 +257,7 @@ class Limatco_Chat_Admin {
 			return;
 		}
 
-		+		$stored_hash     = get_option( self::OPTION_HASH, '' );
+		$stored_hash     = get_option( self::OPTION_HASH, '' );
 		$password_error  = '';
 		$password_notice = '';
 
@@ -452,7 +452,7 @@ class Limatco_Chat_Admin {
 			<?php endif; ?>
 
 			<?php if ( ! $integrity['baseline_missing'] && empty( $integrity['issues'] ) ) : ?>
-				<div class="notice notice-success inline"><p>✅ Todos los archivos están intactos desde la última línea base.</p></div>
+				<div class="notice notice-success inline"><p>Todos los archivos están intactos desde la última línea base.</p></div>
 			<?php elseif ( ! empty( $integrity['issues'] ) ) : ?>
 				<table class="widefat striped" style="margin-top:12px;">
 					<thead>
