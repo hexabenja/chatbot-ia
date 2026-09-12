@@ -244,10 +244,12 @@ class Limatco_Chat_Admin {
 		register_setting( 'lac_settings_group', 'lac_api_key',          array( 'sanitize_callback' => 'sanitize_text_field' ) );
 		register_setting( 'lac_settings_group', 'lac_model',            array( 'sanitize_callback' => 'sanitize_text_field' ) );
 		register_setting( 'lac_settings_group', 'lac_system_prompt',    array( 'sanitize_callback' => 'sanitize_textarea_field' ) );
-		register_setting( 'lac_settings_group', 'lac_welcome_text',     array( 'sanitize_callback' => 'sanitize_text_field' ) );		register_setting( 'lac_settings_group', 'lac_placeholder_text', array( 'sanitize_callback' => 'sanitize_text_field' ) );
-		register_setting( 'lac_settings_group', 'lac_button_label', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+		register_setting( 'lac_settings_group', 'lac_welcome_text',     array( 'sanitize_callback' => 'sanitize_text_field' ) );
 		register_setting( 'lac_settings_group', 'lac_placeholder_text', array( 'sanitize_callback' => 'sanitize_text_field' ) );
-		register_setting( 'lac_settings_group', 'lac_button_label',     array( 'sanitize_callback' => 'sanitize_text_field' ) );		
+		register_setting( 'lac_settings_group', 'lac_button_label',     array( 'sanitize_callback' => 'sanitize_text_field' ) );
+		// Global on/off y página exclusiva (0 = todas las páginas).
+		register_setting( 'lac_settings_group', 'lac_enabled',          array( 'sanitize_callback' => 'absint' ) );
+		register_setting( 'lac_settings_group', 'lac_allowed_page_id',  array( 'sanitize_callback' => 'absint' ) );
 	}
 
 	// ── Render principal ──────────────────────────────────────────────────────
@@ -363,7 +365,7 @@ class Limatco_Chat_Admin {
 						<th scope="row"><label for="lac_model">Modelo</label></th>
 						<td>
 							<input type="text" id="lac_model" name="lac_model"
-+								value="<?php echo esc_attr( get_option( 'lac_model', 'gemini-3.5-flash-lite' ) ); ?>"
+								value="<?php echo esc_attr( get_option( 'lac_model', 'gemini-3.5-flash-lite' ) ); ?>"
 								class="regular-text" />
 							<p class="description">Gemini Flash Lite 3.5 estándar</p>
 						</td>
@@ -398,6 +400,36 @@ class Limatco_Chat_Admin {
 							<input type="text" id="lac_button_label" name="lac_button_label"
 								value="<?php echo esc_attr( get_option( 'lac_button_label', 'Chat' ) ); ?>"
 								class="regular-text" />
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">Estado del chatbot</th>
+						<td>
+							<label>
+								<input type="checkbox" name="lac_enabled" value="1"
+									<?php checked( 1, get_option( 'lac_enabled', 1 ) ); ?> />
+								<strong>Activo en producción</strong>
+							</label>
+							<p class="description">Desmarcar oculta el widget en todo el sitio sin borrar la configuración.</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="lac_allowed_page_id">Restringir a una sola página</label></th>
+						<td>
+							<?php
+							// Dropdown de páginas publicadas.
+							wp_dropdown_pages( array(
+								'name'              => 'lac_allowed_page_id',
+								'id'                => 'lac_allowed_page_id',
+								'selected'          => get_option( 'lac_allowed_page_id', 0 ),
+								'show_option_all'   => '— Mostrar en todas las páginas —',
+								'option_none_value' => '0',
+							) );
+							?>
+							<p class="description">
+								Elige una página para que el chatbot aparezca <strong>solo ahí</strong>.<br />
+								Ejemplo de uso: activarlo únicamente en <em>/tienda</em> o <em>/productos</em>.
+							</p>
 						</td>
 					</tr>
 				</table>
