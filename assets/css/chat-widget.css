@@ -441,11 +441,23 @@
 
 /* ── Tarjeta "¿Quieres ver más?" ─────────────────────────────────────────── */
 .lac-see-more-card {
-	background: #fff;
-	border: 1px solid #e5e5e5;
-	border-radius: 10px;
-	padding: 12px 14px;
-	align-self: stretch;
+	cursor: default;
+	align-items: center;
+	justify-content: center;
+}
+.lac-see-more-card:hover {
+	border-color: #e5e5e5;
+	box-shadow: none;
+}
+
+/* Contenedor interno que centra el contenido verticalmente */
+.lac-see-more-inner {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: flex-start;
+	gap: 10px;
+	width: 100%;
 }
 
 .lac-see-more-title {
