@@ -299,7 +299,6 @@ class Limatco_Chat_Api {
 						array(
 							's'             => $search_term,
 							'post_type'     => 'product',
-							'utm_source'    => 'limatco',
 							'utm_medium'    => 'chatbot',
 						),
 						home_url( '/' )
@@ -316,7 +315,6 @@ class Limatco_Chat_Api {
 							array(
 								's'          => $search_term,
 								'post_type'  => 'product',
-								'utm_source' => 'limatco',
 								'utm_medium' => 'chatbot',
 							),
 							$cat_url
