@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Limatco_Chat_Context {
 
-	const MAX_PRODUCTS = 5;
+	const MAX_PRODUCTS = 6;
 
 	// Tamaño del pool de candidatos que se trae por cada término buscado, antes de
 	// combinar/mezclar en PHP y recortar a MAX_PRODUCTS. COSIDERAR REMOVER EN POSTERIORES VERSIONES DEBIDO A QUE COMO YA ESTÁ ORDERY BY SE PODRÍA OPTIMIZAR MÁS EL TIEMPO DE RESPONSE.
@@ -369,15 +369,6 @@ private static function get_normalized_format_term_ids( $value ) {
 		// Paso 1: categoría + keywords + atributos.
 		$products = self::search_products( $category_slug, $keywords, $tax_query );
 
-		// Paso 1b: diversificación de formatos.
-		// Cuando keywords está vacío y la categoría detectada es una subcategoría hoja
-		// (sin hijos), el clasificador tiende a elegir siempre la misma subcategoría
-		// pequeña (ej. "decorados 20x20"). Para dar variedad de formatos, buscamos
-		// también en las subcategorías hermanas (mismo padre) y mezclamos los resultados.
-		if ( ! empty( $category_slug ) && empty( $keywords ) ) {
-			$products = self::diversify_across_siblings( $category_slug, $tax_query, $products );
-		}
-
 		// Paso 2: sin categoría + keywords + atributos.
 		if ( empty( $products ) && ! empty( $category_slug ) && ! empty( $keywords ) ) {
 			$products = self::search_products( '', $keywords, $tax_query );
@@ -395,73 +386,6 @@ private static function get_normalized_format_term_ids( $value ) {
 		}
 
 		return $products;
-	}
-
-	/**
-	 * Dado un slug de categoría hoja, busca productos en todas las subcategorías
-	 * hermanas (mismo padre) y mezcla los resultados aleatoriamente antes de recortar
-	 * a MAX_PRODUCTS. Así "decorados" no devuelve siempre solo 20x20 sino también
-	 * 30x30, 45x45, etc. según lo que haya en el catálogo.
-	 *
-	 * Si la categoría tiene hijos propios (no es hoja) o no tiene padre (es raíz),
-	 * no hace nada y devuelve $current_products intacto.
- */
-	private static function diversify_across_siblings( $category_slug, $tax_query, $current_products ) {
-		$term = get_term_by( 'slug', $category_slug, 'product_cat' );
-		if ( ! $term || is_wp_error( $term ) || 0 === (int) $term->parent ) {
-			return $current_products; // raíz: no diversificar
-		}
-
-		// Verificar que sea hoja (sin hijos).
-		$children = get_terms( array(
-			'taxonomy'   => 'product_cat',
-			'parent'     => $term->term_id,
-			'hide_empty' => false,
-			'number'     => 1,
-		) );
-		if ( ! empty( $children ) && ! is_wp_error( $children ) ) {
-			return $current_products; // tiene hijos: no es hoja, no diversificar
-		}
-
-		// Obtener hermanas (mismo padre, excluir la categoría actual).
-		$siblings = get_terms( array(
-			'taxonomy'   => 'product_cat',
-			'parent'     => $term->parent,
-			'hide_empty' => true,
-			'exclude'    => array( $term->term_id ),
-		) );
-		if ( empty( $siblings ) || is_wp_error( $siblings ) ) {
-			return $current_products; // sin hermanas: nada que diversificar
-		}
-
-		// Recopilar IDs ya encontrados para evitar duplicados.
-		$seen_ids = array();
-		foreach ( $current_products as $p ) {
-			$seen_ids[ $p->get_id() ] = true;
-		}
-
-		$pool = $current_products;
-
-		// Buscar en cada hermana (orden aleatorio para no favorecer siempre la misma).
-		$shuffled_siblings = $siblings;
-		shuffle( $shuffled_siblings );
-		foreach ( $shuffled_siblings as $sibling ) {
-			$sibling_products = self::search_products( $sibling->slug, '', $tax_query );
-			foreach ( $sibling_products as $p ) {
-				if ( ! isset( $seen_ids[ $p->get_id() ] ) ) {
-					$pool[]                    = $p;
-					$seen_ids[ $p->get_id() ] = true;
-				}
-			}
-		}
-
-		if ( count( $pool ) <= count( $current_products ) ) {
-			return $current_products; // no encontramos nada nuevo en hermanas
-		}
-
-		// Mezclar y recortar al límite de MAX_PRODUCTS.
-		shuffle( $pool );
-		return array_slice( $pool, 0, self::MAX_PRODUCTS );
 	}
 
 	/**

@@ -374,20 +374,15 @@
 	} );
 	
 	// Tarjeta final "¿Quieres ver más?" con enlaces a la categoría y/o atributos para ver más
-	function renderSeeMoreCard( links, container ) {
-		if ( ! links || ! links.length || ! container ) { return; }
-
-		// Va dentro del .lac-products como último hijo (misma forma que tarjeta producto)
+	function renderSeeMoreCard( links ) {
+		if ( ! links || ! links.length ) { return; }
 		var wrapper = document.createElement( 'div' );
-		wrapper.className = 'lac-product-card lac-see-more-card';
-
-		var inner = document.createElement( 'div' );
-		inner.className = 'lac-see-more-inner';
+		wrapper.className = 'lac-see-more-card';
 
 		var title = document.createElement( 'p' );
 		title.className = 'lac-see-more-title';
 		title.textContent = '¿Quieres ver más?';
-		inner.appendChild( title );
+		wrapper.appendChild( title );
 
 		var row = document.createElement( 'div' );
 		row.className = 'lac-see-more-row';
@@ -407,9 +402,8 @@
 			row.appendChild( a );
 		} );
 
-		inner.appendChild( row );
-		wrapper.appendChild( inner );
-		container.appendChild( wrapper );
+		wrapper.appendChild( row );
+		messagesEl.appendChild( wrapper );
 		messagesEl.scrollTop = messagesEl.scrollHeight;
 	}
 
