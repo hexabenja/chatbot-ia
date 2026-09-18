@@ -541,7 +541,7 @@ private static function get_normalized_format_term_ids( $value ) {
 		if ( "M2" !== $unidad ) {
 		return null;
 		}
-		$base = get_post_meta( $product->get_id(), "_precio_unidad_base", true );
+		$base = get_post_meta( $product->get_id(), "precio_unidad_base", true );
 		if ( "" === $base || ! is_numeric( $base ) ) {
 			return null;
 		}
@@ -575,7 +575,7 @@ private static function get_normalized_format_term_ids( $value ) {
 			return null;
 		}
 
-		$base = get_post_meta( $product->get_id(), '_precio_unidad_base', true );
+		$base = get_post_meta( $product->get_id(), 'precio_unidad_base', true );
 		if ( '' === $base || ! is_numeric( $base ) ) {
 			return null;
 		}
