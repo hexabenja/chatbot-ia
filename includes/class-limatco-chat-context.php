@@ -526,6 +526,26 @@ private static function get_normalized_format_term_ids( $value ) {
 	}
 
 	/**
+	 * Precio por m² (meta "_precio_unidad_base", valor crudo) cuando el producto
+	 * se vende por metro cuadrado (meta "unidad_stock" = "M2"). Devuelve null si
+	 * el producto es "C/U" o si el meta de precio base no está seteado/no es
+	 * numérico, para que el llamador use get_price() como corresponde.
+	 */
+	public static function get_m2_unit_price( $product ) {
+		$unidad = get_post_meta( $product->get_id(), 'unidad_stock', true );
+		if ( 'M2' !== $unidad ) {
+			return null;
+		}
+
+		$base = get_post_meta( $product->get_id(), '_precio_unidad_base', true );
+		if ( '' === $base || ! is_numeric( $base ) ) {
+			return null;
+		}
+
+		return (float) $base;
+	}
+
+	/**
 	 * Formatea un producto de WooCommerce como una línea de contexto.
 	 * Usa los Atributos del catálogo (colores, formato, terminación, etc. — ver
 	 * ATTRIBUTE_LABELS) en vez de la descripción larga: son datos estructurados,
@@ -534,7 +554,11 @@ private static function get_normalized_format_term_ids( $value ) {
 	 */
 	private static function format_product_line( $product ) {
 		$name        = $product->get_name();
-		$price       = html_entity_decode( wp_strip_all_tags( wc_price( $product->get_price() ) ), ENT_QUOTES, 'UTF-8' );
+		$m2_price    = self::get_m2_unit_price( $product );
+		$price       = html_entity_decode( wp_strip_all_tags( wc_price( null !== $m2_price ? $m2_price : $product->get_price() ) ), ENT_QUOTES, 'UTF-8' );
+		if ( null !== $m2_price ) {
+			$price .= ' m²';
+		}
 		$stock       = $product->is_in_stock() ? 'Disponible' : 'Sin stock';
 		$sku         = $product->get_sku();
 		$url         = get_permalink( $product->get_id() );
@@ -716,7 +740,13 @@ private static function get_normalized_format_term_ids( $value ) {
 			? wp_get_attachment_image_url( $image_id, 'medium' )
 			: wc_placeholder_img_src( 'medium' );
 
-		$on_sale = $product->is_on_sale();
+		// Producto por m²: precio base fijo (sin oferta/regular_price propios, ya que
+		// no existe un meta de oferta para la unidad m² — solo la caja tiene _sale_price).
+		// Mostrar el "on_sale"/regular_price de la caja junto al precio m² mezclaría
+		// unidades distintas, así que se omiten para estos productos.
+		$m2_price = self::get_m2_unit_price( $product );
+
+		$on_sale = ( null === $m2_price ) && $product->is_on_sale();
 
 		$discount_percent = 0;
 		if ( $on_sale ) {
@@ -727,6 +757,13 @@ private static function get_normalized_format_term_ids( $value ) {
 			}
 		}
 
+		$price_amount = null !== $m2_price ? $m2_price : $product->get_price();
+		$price_text   = html_entity_decode( wp_strip_all_tags( wc_price( $price_amount ) ), ENT_QUOTES, 'UTF-8' );
+		if ( null !== $m2_price ) {
+			$price_text .= ' m²';
+		}
+
+
 		return array(
 			'id'                => $product->get_id(),
 			'name'              => $product->get_name(),
@@ -735,7 +772,7 @@ private static function get_normalized_format_term_ids( $value ) {
 			'url'               => get_permalink( $product->get_id() ),
 			// wc_price() devuelve el símbolo de moneda como entidad HTML (&#36;);
 			// hay que decodificarla además de quitar las etiquetas, o queda "&#36;24.225" en pantalla.
-			'price'             => html_entity_decode( wp_strip_all_tags( wc_price( $product->get_price() ) ), ENT_QUOTES, 'UTF-8' ),
+			'price'             => $price_text,
 			'regular_price'     => $on_sale ? html_entity_decode( wp_strip_all_tags( wc_price( $product->get_regular_price() ) ), ENT_QUOTES, 'UTF-8' ) : '',
 			'on_sale'           => $on_sale,
 			'discount_percent'  => $discount_percent,
