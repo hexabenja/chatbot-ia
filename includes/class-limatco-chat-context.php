@@ -526,10 +526,8 @@ private static function get_normalized_format_term_ids( $value ) {
 	}
 
 	/**
-	 * Precio por m² (meta "_precio_unidad_base", valor crudo) cuando el producto
-	 * se vende por metro cuadrado (meta "unidad_stock" = "M2"). Devuelve null si
-	 * el producto es "C/U" o si el meta de precio base no está seteado/no es
-	 * numérico, para que el llamador use get_price() como corresponde.
+	 * Precio por m² ("_precio_unidad_base") cuando "unidad_stock" = "M2"). 
+	 * Devuele null si es C/U o si no hya dato en precio base
 	 */
 	public static function get_m2_unit_price( $product ) {
 		$unidad = get_post_meta( $product->get_id(), 'unidad_stock', true );
@@ -740,10 +738,7 @@ private static function get_normalized_format_term_ids( $value ) {
 			? wp_get_attachment_image_url( $image_id, 'medium' )
 			: wc_placeholder_img_src( 'medium' );
 
-		// Producto por m²: precio base fijo (sin oferta/regular_price propios, ya que
-		// no existe un meta de oferta para la unidad m² — solo la caja tiene _sale_price).
-		// Mostrar el "on_sale"/regular_price de la caja junto al precio m² mezclaría
-		// unidades distintas, así que se omiten para estos productos.
+		// Producto por m²: precio base fijo (sin oferta/regular_price propios, temporal)
 		$m2_price = self::get_m2_unit_price( $product );
 
 		$on_sale = ( null === $m2_price ) && $product->is_on_sale();
