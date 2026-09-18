@@ -115,9 +115,9 @@ function lac_render_widget_markup() {
 add_action( 'wp_footer', 'lac_render_widget_markup' );
 
 /**
- * Fuerza el precio efectivo en el carrito para productos que se venden por m²:
- * unidad_stock = "M2", (_precio_unidad_base)
- * C/U = queda $product->get_price()
+ * si unidad_stock = "M2", usa get_m2_price_info()
+ * (precio unidad base, o precio de oferta = precio_oferta_caja / rendimiento_m2_por_caja
+ * Si es "C/U" no se toca nada — queda el $product->get_price()
  */
 function lac_apply_m2_price_to_cart( $cart ) {
 	if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
@@ -125,9 +125,9 @@ function lac_apply_m2_price_to_cart( $cart ) {
 	}
 
 	foreach ( $cart->get_cart() as $cart_item ) {
-		$m2_price = Limatco_Chat_Context::get_m2_unit_price( $cart_item['data'] );
-		if ( null !== $m2_price ) {
-			$cart_item['data']->set_price( $m2_price );
+		$m2_info = Limatco_Chat_Context::get_m2_price_info( $cart_item['data'] );
+		if ( null !== $m2_info ) {
+			$cart_item['data']->set_price( $m2_info['price'] );
 		}
 	}
 }

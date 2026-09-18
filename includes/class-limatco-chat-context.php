@@ -551,11 +551,14 @@ private static function get_normalized_format_term_ids( $value ) {
 	 * que tener que interpretar un párrafo de texto libre.
 	 */
 	private static function format_product_line( $product ) {
-		$name        = $product->get_name();
-		$m2_price    = self::get_m2_unit_price( $product );
-		$price       = html_entity_decode( wp_strip_all_tags( wc_price( null !== $m2_price ? $m2_price : $product->get_price() ) ), ENT_QUOTES, 'UTF-8' );
-		if ( null !== $m2_price ) {
+		$name     = $product->get_name();
+		$m2_info  = self::get_m2_price_info( $product );
+		$price    = html_entity_decode( wp_strip_all_tags( wc_price( null !== $m2_info ? $m2_info['price'] : $product->get_price() ) ), ENT_QUOTES, 'UTF-8' );
+		if ( null !== $m2_info ) {
 			$price .= ' m²';
+			if ( $m2_info['on_sale'] ) {
+				$price .= ' (en oferta, precio normal ' . html_entity_decode( wp_strip_all_tags( wc_price( $m2_info['regular'] ) ), ENT_QUOTES, 'UTF-8' ) . ' m²)';
+			}
 		}
 		$stock       = $product->is_in_stock() ? 'Disponible' : 'Sin stock';
 		$sku         = $product->get_sku();
@@ -738,13 +741,15 @@ private static function get_normalized_format_term_ids( $value ) {
 			? wp_get_attachment_image_url( $image_id, 'medium' )
 			: wc_placeholder_img_src( 'medium' );
 
-		// Producto por m²: precio base fijo (sin oferta/regular_price propios, temporal)
-		$m2_price = self::get_m2_unit_price( $product );
+		// Producto por m²: al estar en oferta, se calcula el valor con rendimiento_m2_por_caja (ver get_m2_price_info)
+		// Si no hay oferta o no se puede calcular, es solo el precio base en m².
+		$m2_info = self::get_m2_price_info( $product );
 
-		$on_sale = ( null === $m2_price ) && $product->is_on_sale();
 
-		$discount_percent = 0;
-		if ( $on_sale ) {
+		$on_sale          = ( null !== $m2_info ) ? $m2_info['on_sale'] : $product->is_on_sale();
+		$discount_percent = ( null !== $m2_info ) ? $m2_info['discount_percent'] : 0;
+
++		if ( null === $m2_info && $on_sale ) {
 			$regular = (float) $product->get_regular_price();
 			$current = (float) $product->get_price();
 			if ( $regular > 0 ) {
@@ -752,9 +757,10 @@ private static function get_normalized_format_term_ids( $value ) {
 			}
 		}
 
-		$price_amount = null !== $m2_price ? $m2_price : $product->get_price();
-		$price_text   = html_entity_decode( wp_strip_all_tags( wc_price( $price_amount ) ), ENT_QUOTES, 'UTF-8' );
-		if ( null !== $m2_price ) {
+		$price_amount   = null !== $m2_info ? $m2_info['price'] : $product->get_price();
+		$price_text     = html_entity_decode( wp_strip_all_tags( wc_price( $price_amount ) ), ENT_QUOTES, 'UTF-8' );
+		$regular_amount = null !== $m2_info ? $m2_info['regular'] : ( float ) $product->get_regular_price();
+		if ( null !== $m2_info ) {
 			$price_text .= ' m²';
 		}
 
@@ -768,7 +774,7 @@ private static function get_normalized_format_term_ids( $value ) {
 			// wc_price() devuelve el símbolo de moneda como entidad HTML (&#36;);
 			// hay que decodificarla además de quitar las etiquetas, o queda "&#36;24.225" en pantalla.
 			'price'             => $price_text,
-			'regular_price'     => $on_sale ? html_entity_decode( wp_strip_all_tags( wc_price( $product->get_regular_price() ) ), ENT_QUOTES, 'UTF-8' ) : '',
+			'regular_price'     => $on_sale ? ( html_entity_decode( wp_strip_all_tags( wc_price( $regular_amount ) ), ENT_QUOTES, 'UTF-8' ) . ( null !== $m2_info ? ' m²' : '' ) ) : '',
 			'on_sale'           => $on_sale,
 			'discount_percent'  => $discount_percent,
 			'in_stock'          => $product->is_in_stock(),
