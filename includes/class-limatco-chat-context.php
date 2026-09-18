@@ -526,9 +526,49 @@ private static function get_normalized_format_term_ids( $value ) {
 	}
 
 	/**
-	 * Precio por m² ("_precio_unidad_base") cuando "unidad_stock" = "M2"). 
-	 * Devuele null si es C/U o si no hya dato en precio base
+	 * Info de precio m² para un producto "unidad_stock = M2", o null si no aplica
+	 * (producto C/U, o falta/no es numérico "_precio_unidad_base").
+	 *
+	 * "regular" es siempre el precio base fijo (_precio_unidad_base, valor crudo).
+	 * Si la caja esta en oferta (is_on_sale()), "price" se recalcula como
+	 * precio_oferta_caja / rendimiento_m2_por_caja (meta con coma decimal, ej.
+	 * "2,17" -> 2.17) y "on_sale" queda true; si no hay oferta, o si el
+	 * rendimiento no es un numero valido, "price"
+	 * cae de vuelta al precio base y "on_sale" queda false.
 	 */
+	public static function get_m2_price_info( $product ) {
+		$unidad = get_post_meta( $product->get_id(), "unidad_stock", true );
+		if ( "M2" !== $unidad ) {
+		return null;
+		}
+		$base = get_post_meta( $product->get_id(), "_precio_unidad_base", true );
+		if ( "" === $base || ! is_numeric( $base ) ) {
+			return null;
+		}
+		$regular_m2 = (float) $base;
+		$price_m2 = $regular_m2;
+		$on_sale = false;
+		$discount_percent = 0;
+		if ( $product->is_on_sale() ) {
+			$rendimiento_raw = get_post_meta( $product->get_id(), "rendimiento_m2_por_caja", true );
+			$rendimiento = (float) str_replace( ",", ".", (string) $rendimiento_raw );
+			if ( $rendimiento > 0 ) {
+				$sale_box_price = (float) $product->get_price();
+				$price_m2 = $sale_box_price / $rendimiento;
+				$on_sale = true;
+				if ( $regular_m2 > 0 ) {
+					$discount_percent = (int) round( ( ( $regular_m2 - $price_m2 ) / $regular_m2 ) * 100 );
+				}
+			}
+		}
+		return array(
+			"regular" => $regular_m2,
+			"price" => $price_m2,
+			"on_sale" => $on_sale,
+			"discount_percent" => $discount_percent,
+		);
+	}
+
 	public static function get_m2_unit_price( $product ) {
 		$unidad = get_post_meta( $product->get_id(), 'unidad_stock', true );
 		if ( 'M2' !== $unidad ) {
@@ -749,7 +789,7 @@ private static function get_normalized_format_term_ids( $value ) {
 		$on_sale          = ( null !== $m2_info ) ? $m2_info['on_sale'] : $product->is_on_sale();
 		$discount_percent = ( null !== $m2_info ) ? $m2_info['discount_percent'] : 0;
 
-+		if ( null === $m2_info && $on_sale ) {
+		if ( null === $m2_info && $on_sale ) {
 			$regular = (float) $product->get_regular_price();
 			$current = (float) $product->get_price();
 			if ( $regular > 0 ) {
