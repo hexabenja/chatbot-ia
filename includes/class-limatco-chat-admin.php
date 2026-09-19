@@ -250,6 +250,8 @@ class Limatco_Chat_Admin {
 		// Global on/off y página exclusiva (0 = todas las páginas).
 		register_setting( 'lac_settings_group', 'lac_enabled',          array( 'sanitize_callback' => 'absint' ) );
 		register_setting( 'lac_settings_group', 'lac_allowed_page_id',  array( 'sanitize_callback' => 'absint' ) );
+		// Excluir del chat productos con stock < Limatco_Chat_Context::LOW_STOCK_THRESHOLD (20).
+		register_setting( 'lac_settings_group', 'lac_exclude_low_stock', array( 'sanitize_callback' => 'absint' ) );
 	}
 
 	// ── Render principal ──────────────────────────────────────────────────────
@@ -411,6 +413,17 @@ class Limatco_Chat_Admin {
 								<strong>Activo en producción</strong>
 							</label>
 							<p class="description">Desmarcar oculta el widget en todo el sitio sin borrar la configuración.</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">Stock bajo</th>
+						<td>
+							<label>
+								<input type="checkbox" name="lac_exclude_low_stock" value="1"
+									<?php checked( 1, get_option( 'lac_exclude_low_stock', 0 ) ); ?> />
+								<strong>No buscar productos con stock menor a 20</strong>
+							</label>
+							<p class="description">Activado: el chat no ofrece productos con menos de 20 unidades de stock (los que no gestionan stock no se ven afectados).</p>
 						</td>
 					</tr>
 					<tr>
