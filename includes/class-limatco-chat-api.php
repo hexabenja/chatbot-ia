@@ -155,11 +155,20 @@ class Limatco_Chat_Api {
 
 		$is_branches_query = $this->is_branches_query( $user_message );
 
+		// "oferta/rebaja/descuento/remate" -> solo productos en oferta.
+		// "económico/barato" (incluye "X más barato") -> ordenar de menor a mayor precio.
+		// Detección por palabra clave (igual que is_branches_query): son intenciones de
+		// filtro/orden sobre la búsqueda, no dependen de la clasificación por IA.
+		$wants_on_sale   = $this->is_sale_query( $user_message );
+		$wants_cheapest  = $this->is_cheap_query( $user_message );
+
 		// 2.- Buscar en WooCommerce con esa categoría/keywords/atributos SOLO si el mensaje es
 		// realmente sobre productos. Si no (ej. "hola", "gracias", o una pregunta de
 		// sucursales/horarios), evitamos la búsqueda: con categoría/keywords vacías la
 		// cascada terminaba trayendo productos al azar del catálogo para un simple saludo.
-		if ( ! empty( $classification['needs_search'] ) && ! $is_branches_query ) {
+		// "oferta"/"barato" son siempre intención de búsqueda de producto, aunque el
+		// clasificador (needs_search) se equivoque con un mensaje corto tipo "ofertas".
+		if ( ( ! empty( $classification['needs_search'] ) || $wants_on_sale || $wants_cheapest ) && ! $is_branches_query ) {
 			// get_context_for_query() devuelve el texto para el prompt de la IA
 			// y, aparte, la data (imagen/precio/stock/oferta) para las tarjetas del widget.
 			$context_data = Limatco_Chat_Context::get_context_for_query(
@@ -168,7 +177,9 @@ class Limatco_Chat_Api {
 				$classification['colores'],
 				$classification['single_color_only'],
 				$classification['atributos'],
-				$classification['product_type'] ?? ''
+				$classification['product_type'] ?? '',
+				$wants_on_sale,
+				$wants_cheapest
 			);
 		} else {
 			$context_data = array(
@@ -186,6 +197,13 @@ class Limatco_Chat_Api {
 		// preguntó (ej. el horario de una sola sucursal) usando este contexto, no un texto fijo.
 		if ( $is_branches_query ) {
 			$full_system .= "\n\n--- Información de sucursales (dirección, teléfonos, horario). Responde solo con lo que se pregunte, no vuelques todo el listado salvo que el usuario pida ver todas las sucursales:\n" . self::BRANCHES_CONTEXT;
+		}
+
+		if ( $wants_on_sale ) {
+			$full_system .= "\n\n--- Los productos de arriba ya están filtrados: son SOLO productos en oferta/rebaja. Menciónalo brevemente en tu respuesta.";
+		}
+		if ( $wants_cheapest ) {
+			$full_system .= "\n\n--- Los productos de arriba ya están ordenados de menor a mayor precio (el más económico primero).";
 		}
 
 		// Debug completo de mensajes de IA, incluye Query, Clasificacion, Prompt, Historial, resultados, finalizacion, safety y respuesta.
@@ -707,6 +725,55 @@ class Limatco_Chat_Api {
 			'a que hora cierran',
 		);
 		foreach ( $branch_triggers as $trigger ) {
+			if ( false !== strpos( $normalized, $trigger ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** Detecta intención de "solo productos en oferta" (oferta/rebaja/descuento/remate). Mismo patrón normalizado que is_branches_query(). */
+	private function is_sale_query( $user_message ) {
+		$normalized = strtolower( remove_accents( $user_message ) );
+
+		$sale_triggers = array(
+			'oferta',
+			'ofertas',
+			'rebaja',
+			'rebajas',
+			'descuento',
+			'descuentos',
+			'remate',
+			'remates',
+		);
+		foreach ( $sale_triggers as $trigger ) {
+			if ( false !== strpos( $normalized, $trigger ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** Detecta intención de "ordenar de más barato a más caro" (económico/barato, incluye "X más barato"/"menor precio"). */
+	private function is_cheap_query( $user_message ) {
+		$normalized = strtolower( remove_accents( $user_message ) );
+
+		$cheap_triggers = array(
+			'economico',
+			'economica',
+			'economicos',
+			'economicas',
+			'barato',
+			'barata',
+			'baratos',
+			'baratas',
+			'menor precio',
+			'mas bajo precio',
+			'precio mas bajo',
+		);
+		foreach ( $cheap_triggers as $trigger ) {
 			if ( false !== strpos( $normalized, $trigger ) ) {
 				return true;
 			}
