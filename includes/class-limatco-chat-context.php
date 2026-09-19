@@ -586,13 +586,13 @@ private static function get_normalized_format_term_ids( $value ) {
 			$args['meta_query'] = array(
 				'relation' => 'OR',
 				array(
-					'key'     => '_stock',
+					'key'     => 'stock',
 					'value'   => self::LOW_STOCK_THRESHOLD,
 					'compare' => '>=',
 					'type'    => 'NUMERIC',
 				),
 				array(
-					'key'     => '_stock',
+					'key'     => 'stock',
 					'compare' => 'NOT EXISTS',
 				),
 			);
