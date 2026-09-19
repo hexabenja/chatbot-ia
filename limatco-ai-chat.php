@@ -20,6 +20,7 @@
  * 0.6.7: respuestas fijas (sin pasar por la IA) para contacto telefónico y listado de sucursales; el badge "Disponible" ya no se muestra en la tarjeta (solo "Sin stock" cuando corresponde)
  * 0.6.8: orderby=rand en la query de cada término de búsqueda (no solo shuffle() en PHP después): el pool de candidatos ahora es una muestra al azar de TODOS los productos que calzan, no siempre el mismo top-30 por fecha
  * 0.6.9: la respuesta de sucursales ya no es un texto fijo; ahora es contexto (dirección, teléfonos, horarios) que se inyecta solo en preguntas de sucursales, y la IA responde específicamente a lo preguntado
+ * 0.7.0: detección de "oferta/rebaja/descuento/remate" (solo productos en oferta) y "económico/barato" (orden de menor a mayor precio, unidad base m² o precio regular); toggle admin "no buscar productos con stock menor a 20"
 */
 
 
@@ -29,7 +30,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'LAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LAC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'LAC_VERSION', '0.4.9' );
+define( 'LAC_VERSION', '0.5.0' );
 
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-admin.php';
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-api.php';

@@ -16,6 +16,14 @@ class Limatco_Chat_Context {
 	// combinar/mezclar en PHP y recortar a MAX_PRODUCTS. COSIDERAR REMOVER EN POSTERIORES VERSIONES DEBIDO A QUE COMO YA ESTÁ ORDERY BY SE PODRÍA OPTIMIZAR MÁS EL TIEMPO DE RESPONSE.
 	const SHUFFLE_POOL_SIZE = 30;
 
+	// Umbral de "stock bajo" para la opción "excluir productos con poco stock" (lac_exclude_low_stock).
+	const LOW_STOCK_THRESHOLD = 20;
+
+	/** true si el admin activó "no mostrar productos con stock menor a 20" (lac_exclude_low_stock). */
+	private static function exclude_low_stock_enabled() {
+		return '1' === (string) get_option( 'lac_exclude_low_stock', '0' );
+	}
+
 	// Slugs de los Atributos de WooCommerce del catálogo (confirmados en wp-admin ->
 	// Productos -> Atributos, ~1773/1993 productos los tienen cargados) y su etiqueta
 	// legible para el texto de contexto. Se usan tanto para armar la línea de atributos
@@ -234,11 +242,13 @@ private static function get_normalized_format_term_ids( $value ) {
 	 * @param array  $colores            Colores predominantes pedidos (puede venir vacío). Ej: ['blanco'] o ['blanco','gris'].
 	 * @param bool   $single_color_only  true si el usuario pidió explícitamente un producto de un solo color (sin combinar).
 	 * @param array  $atributos          Filtros de atributo adicionales, slug => valor (ej. ['formato' => '60x60', 'terminacion' => 'antideslizante']).
+	 * @param bool   $only_on_sale       true si el usuario pidió ofertas/rebajas/descuentos/remates: solo trae productos en oferta.
+	 * @param bool   $sort_price_asc     true si el usuario pidió lo más económico/barato: ordena de menor a mayor precio (unidad base m² o precio regular) en vez de mezclar por variedad de marca.
 	 * @return array{text:string,products:array} 'text' va al prompt de la IA;
 	 *         'products' es la data (imagen/precio/stock/oferta) para las
 	 *         tarjetas que el widget pinta debajo de la respuesta.
 	 */
-	public static function get_context_for_query( $category_slug, $keywords, $colores = array(), $single_color_only = false, $atributos = array(), $product_type = '' ) {
+	public static function get_context_for_query( $category_slug, $keywords, $colores = array(), $single_color_only = false, $atributos = array(), $product_type = '', $only_on_sale = false, $sort_price_asc = false ) {
 		if ( ! function_exists( 'wc_get_products' ) ) {
 			return array(
 				'text'     => 'WooCommerce no está activo en este sitio.',
@@ -262,7 +272,7 @@ private static function get_normalized_format_term_ids( $value ) {
 
 		$products = array();
 		if ( ! empty( $tax_query ) ) {
-			$products = self::run_cascade( $forced_slug, $merged_keywords, $tax_query );
+			$products = self::run_cascade( $forced_slug, $merged_keywords, $tax_query, $only_on_sale, $sort_price_asc );
 
 			if ( $single_color_only && 1 === count( $colores ) ) {
 				$products = self::filter_single_color_only( $products, $colores[0] );
@@ -271,12 +281,12 @@ private static function get_normalized_format_term_ids( $value ) {
 			// Fallback colores múltiples: reintenta con solo el primer color.
 			if ( empty( $products ) && count( $colores ) > 1 ) {
 				$attr_primary = self::build_attribute_tax_query( array( $colores[0] ), $atributos );
-				$products     = self::run_cascade( $forced_slug, $merged_keywords, $attr_primary['tax_query'] );
+				$products     = self::run_cascade( $forced_slug, $merged_keywords, $attr_primary['tax_query'], $only_on_sale, $sort_price_asc );
 			}
 		}
 
 		if ( empty( $products ) && empty( $tax_query ) ) {
-			$products = self::run_cascade( $forced_slug, $merged_keywords, array() );
+			$products = self::run_cascade( $forced_slug, $merged_keywords, array(), $only_on_sale, $sort_price_asc );
 		}
 
 		if ( empty( $products ) ) {
@@ -365,24 +375,24 @@ private static function get_normalized_format_term_ids( $value ) {
 		return $allowed_roots[0];
 	}
 
-	private static function run_cascade( $category_slug, $keywords, $tax_query ) {
+	private static function run_cascade( $category_slug, $keywords, $tax_query, $only_on_sale = false, $sort_price_asc = false ) {
 		// Paso 1: categoría + keywords + atributos.
-		$products = self::search_products( $category_slug, $keywords, $tax_query );
+		$products = self::search_products( $category_slug, $keywords, $tax_query, $only_on_sale, $sort_price_asc );
 
 		// Paso 2: sin categoría + keywords + atributos.
 		if ( empty( $products ) && ! empty( $category_slug ) && ! empty( $keywords ) ) {
-			$products = self::search_products( '', $keywords, $tax_query );
+			$products = self::search_products( '', $keywords, $tax_query, $only_on_sale, $sort_price_asc );
 		}
 
 		// Paso 3: categoría + atributos (sin keywords).
 		if ( empty( $products ) && ! empty( $category_slug ) ) {
-			$products = self::search_products( $category_slug, '', $tax_query );
+			$products = self::search_products( $category_slug, '', $tax_query, $only_on_sale, $sort_price_asc );
 		}
 
 		// Paso 4: solo atributos, sin categoría ni keywords.
 		// Cubre el caso donde categoría es incorrecta y keywords está vacío.
 		if ( empty( $products ) && ! empty( $category_slug ) && ! empty( $tax_query ) ) {
-			$products = self::search_products( '', '', $tax_query );
+			$products = self::search_products( '', '', $tax_query, $only_on_sale, $sort_price_asc );
 		}
 
 		return $products;
@@ -396,14 +406,17 @@ private static function get_normalized_format_term_ids( $value ) {
 	 * el producto sí cumpla con cada término por separado. Se prioriza a los productos
 	 * que calzan con más términos, y se mezcla el resto para variar marcas.
 	 */
-	private static function search_products( $category_slug, $keywords, $tax_query = array() ) {
+	private static function search_products( $category_slug, $keywords, $tax_query = array(), $only_on_sale = false, $sort_price_asc = false ) {
 		$keywords = trim( (string) $keywords );
 
 		if ( '' === $keywords ) {
-			$products = self::run_single_term_query( $category_slug, '', $tax_query );
+			$products = self::run_single_term_query( $category_slug, '', $tax_query, $only_on_sale );
 			error_log( 'LIMATCO DEBUG - WC RESULTS (keywords vacías): ' . count( $products ) );
 			if ( empty( $products ) ) {
 				return $products;
+			}
+			if ( $sort_price_asc ) {
+				return self::sort_by_price_asc( $products );
 			}
 			// Mismo tratamiento que el resto: mezclar (variedad de marca) y recortar
 			// a MAX_PRODUCTS. Sin esto, una categoría/keywords vacías devolvía hasta
@@ -415,13 +428,14 @@ private static function get_normalized_format_term_ids( $value ) {
 		$terms = self::expand_search_terms( $keywords );
 
 		if ( empty( $terms ) ) {
-			return self::run_single_term_query( $category_slug, $keywords, $tax_query );
+			$products = self::run_single_term_query( $category_slug, $keywords, $tax_query, $only_on_sale );
+			return $sort_price_asc ? self::sort_by_price_asc( $products ) : $products;
 		}
 
 		$scored = array(); // id => array('product' => WC_Product, 'score' => int)
 
 		foreach ( $terms as $term ) {
-			$found = self::run_single_term_query( $category_slug, $term, $tax_query );
+			$found = self::run_single_term_query( $category_slug, $term, $tax_query, $only_on_sale );
 			error_log( 'LIMATCO DEBUG - WC RESULTS (término "' . $term . '"): ' . count( $found ) );
 			foreach ( $found as $product ) {
 				$id = $product->get_id();
@@ -440,6 +454,19 @@ private static function get_normalized_format_term_ids( $value ) {
 		}
 
 		$entries = array_values( $scored );
+
+		// Pedido de "más barato/económico": el orden lo decide el precio, no la
+		// variedad de marca ni el score de coincidencia de keywords.
+		if ( $sort_price_asc ) {
+			$products = array_map(
+				function ( $entry ) {
+					return $entry['product'];
+				},
+				$entries
+			);
+			return self::sort_by_price_asc( $products );
+		}
+
 		// Se mezcla ANTES de ordenar por score para que los empates queden en orden
 		// aleatorio (variedad de marca) en vez de siempre en el mismo orden.
 		shuffle( $entries );
@@ -459,6 +486,28 @@ private static function get_normalized_format_term_ids( $value ) {
 		);
 
 		return array_slice( $products, 0, self::MAX_PRODUCTS );
+	}
+
+	/**
+	 * Ordena productos de menor a mayor precio y recorta a MAX_PRODUCTS. El precio
+	 * comparado es el "precio unidad base" (m²) para productos M2 (ver get_m2_unit_price,
+	 * precio fijo sin importar oferta) o el precio regular (get_price()) para el resto.
+	 * Usado por "más económico/barato" y "X más barato".
+	 */
+	private static function sort_by_price_asc( $products ) {
+		usort(
+			$products,
+			function ( $a, $b ) {
+				return self::get_comparable_price( $a ) <=> self::get_comparable_price( $b );
+			}
+		);
+		return array_slice( $products, 0, self::MAX_PRODUCTS );
+	}
+
+	/** Precio usado para comparar/ordenar por "más barato": unidad base m² si aplica, si no el precio regular del producto. */
+	private static function get_comparable_price( $product ) {
+		$m2_unit = self::get_m2_unit_price( $product );
+		return null !== $m2_unit ? $m2_unit : (float) $product->get_price();
 	}
 
 	/**
@@ -487,8 +536,8 @@ private static function get_normalized_format_term_ids( $value ) {
 		return array_values( array_unique( $terms ) );
 	}
 
-	/** Ejecuta una única consulta a WooCommerce con la categoría/término dados (cualquiera de los dos puede venir vacío), más un $tax_query opcional (filtro de atributos: color/formato/terminación/etc.). */
-	private static function run_single_term_query( $category_slug, $term, $tax_query = array() ) {
+	/** Ejecuta una única consulta a WooCommerce con la categoría/término dados (cualquiera de los dos puede venir vacío), más un $tax_query opcional (filtro de atributos: color/formato/terminación/etc.) y $only_on_sale (solo productos en oferta). */
+	private static function run_single_term_query( $category_slug, $term, $tax_query = array(), $only_on_sale = false ) {
 		$args = array(
 			'status'  => 'publish',
 			'limit'   => self::SHUFFLE_POOL_SIZE,
@@ -518,6 +567,35 @@ private static function get_normalized_format_term_ids( $value ) {
 				wp_json_encode( $tax_query, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES )
 			);
 			$args['tax_query'] = $tax_query;
+		}
+
+		// Ofertas/rebajas/descuentos/remate: restringe el pool a los IDs actualmente
+		// en oferta antes de aplicar categoría/keywords/atributos.
+		if ( $only_on_sale ) {
+			$sale_ids = wc_get_product_ids_on_sale();
+			if ( empty( $sale_ids ) ) {
+				return array();
+			}
+			$args['include'] = $sale_ids;
+		}
+
+		// Toggle admin "no mostrar productos con stock menor a 20": excluye productos
+		// con stock gestionado y cantidad < LOW_STOCK_THRESHOLD; los que no gestionan
+		// stock (meta '_stock' inexistente) no se ven afectados por este filtro.
+		if ( self::exclude_low_stock_enabled() ) {
+			$args['meta_query'] = array(
+				'relation' => 'OR',
+				array(
+					'key'     => '_stock',
+					'value'   => self::LOW_STOCK_THRESHOLD,
+					'compare' => '>=',
+					'type'    => 'NUMERIC',
+				),
+				array(
+					'key'     => '_stock',
+					'compare' => 'NOT EXISTS',
+				),
+			);
 		}
 
 		error_log( 'LIMATCO DEBUG - WC_ARGS: ' . wp_json_encode( $args, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ) );
