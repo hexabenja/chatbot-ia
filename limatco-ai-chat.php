@@ -21,6 +21,7 @@
  * 0.6.8: orderby=rand en la query de cada término de búsqueda (no solo shuffle() en PHP después): el pool de candidatos ahora es una muestra al azar de TODOS los productos que calzan, no siempre el mismo top-30 por fecha
  * 0.6.9: la respuesta de sucursales ya no es un texto fijo; ahora es contexto (dirección, teléfonos, horarios) que se inyecta solo en preguntas de sucursales, y la IA responde específicamente a lo preguntado
  * 0.7.0: detección de "oferta/rebaja/descuento/remate" (solo productos en oferta) y "económico/barato" (orden de menor a mayor precio, unidad base m² o precio regular); toggle admin "no buscar productos con stock menor a 20"
+ * 0.7.1: "restringir a una sola página" ahora es una lista de rutas/URLs editable (ej. /producto, / , /carrito) en vez de un dropdown de una sola página; /producto calza también con /producto/nombre-del-producto/
 */
 
 
@@ -30,11 +31,74 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'LAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LAC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'LAC_VERSION', '0.5.0' );
+define( 'LAC_VERSION', '0.5.1' );
 
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-admin.php';
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-api.php';
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-context.php';
+
+/**
+ * Lee "lac_allowed_paths" (una ruta por línea, ej. /producto, /, /carrito) y la
+ * normaliza: slash inicial, sin slash final (salvo la raíz "/"), minúsculas.
+ * Vacío = sin restricción (se muestra en todo el sitio, comportamiento anterior).
+ *
+ * @return string[] Lista de rutas normalizadas.
+ */
+function lac_get_allowed_paths() {
+	$raw = trim( (string) get_option( 'lac_allowed_paths', '' ) );
+	if ( '' === $raw ) {
+		return array();
+	}
+
+	$paths = array();
+	foreach ( preg_split( '/[\r\n]+/', $raw ) as $line ) {
+		$line = trim( $line );
+		if ( '' === $line ) {
+			continue;
+		}
+		$path = '/' . ltrim( $line, '/' );
+		if ( '/' !== $path ) {
+			$path = rtrim( $path, '/' );
+		}
+		$paths[] = strtolower( $path );
+	}
+
+	return array_unique( $paths );
+}
+
+/**
+ * true si la URL actual calza con alguna ruta de "lac_allowed_paths" (o si la
+ * lista está vacía, sin restricción). "/producto" calza con "/producto" y con
+ * cualquier ruta hija ("/producto/nombre-del-producto/"); "/" solo calza con
+ * la raíz exacta del sitio.
+ */
+function lac_current_path_is_allowed() {
+	$allowed = lac_get_allowed_paths();
+	if ( empty( $allowed ) ) {
+		return true;
+	}
+
+	$current = isset( $_SERVER['REQUEST_URI'] ) ? wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ) : '/';
+	$current = '/' . ltrim( (string) $current, '/' );
+	if ( '/' !== $current ) {
+		$current = rtrim( $current, '/' );
+	}
+	$current = strtolower( $current );
+
+	foreach ( $allowed as $path ) {
+		if ( '/' === $path ) {
+			if ( '/' === $current ) {
+				return true;
+			}
+			continue;
+		}
+		if ( $current === $path || 0 === strpos( $current, $path . '/' ) ) {
+			return true;
+		}
+	}
+
+	return false;
+}
 
 /**
  * Inicializa el plugin.
@@ -60,9 +124,8 @@ function lac_enqueue_assets() {
 		return;
 	}
 
-	// Gate de página: si hay una página específica configurada, solo cargar ahí.
-	$allowed_page_id = (int) get_option( 'lac_allowed_page_id', 0 );
-	if ( $allowed_page_id > 0 && ! is_page( $allowed_page_id ) ) {
+	// Gate de rutas: si hay rutas específicas configuradas, solo cargar ahí.
+	if ( ! lac_current_path_is_allowed() ) {
 		return;
 	}
 
@@ -107,8 +170,7 @@ function lac_render_widget_markup() {
 	if ( ! get_option( 'lac_enabled', 1 ) ) {
 		return;
 	}
-	$allowed_page_id = (int) get_option( 'lac_allowed_page_id', 0 );
-	if ( $allowed_page_id > 0 && ! is_page( $allowed_page_id ) ) {
+	if ( ! lac_current_path_is_allowed() ) {
 		return;
 	}
 	include LAC_PLUGIN_DIR . 'includes/widget-markup.php';
