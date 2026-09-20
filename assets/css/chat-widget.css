@@ -301,6 +301,7 @@
     border-radius: 8px;
     cursor: pointer;
     text-decoration: none;
+	border: none;
 }
 .lac-add-cart-btn:hover {
 	opacity: 0.9;
@@ -322,18 +323,17 @@
 	margin-left: 6px;
     align-self: auto;
     margin-top: 4px;
-    background: #ffffff;
-    color: #ff0000;
+    background: #00364b;
+    color: white;
     font-size: 13.5px;
     font-weight: 700;
     padding: 6px 12px;
     border-radius: 8px;
     cursor: pointer;
-    border: red, solid, 3px;
     text-decoration: none;
 }
 .lac-view-btn:hover {
-	background: #76222d;
+	background: #026085;
 	color: #fff;
 }
 
