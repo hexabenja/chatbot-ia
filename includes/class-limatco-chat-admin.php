@@ -249,7 +249,8 @@ class Limatco_Chat_Admin {
 		register_setting( 'lac_settings_group', 'lac_button_label',     array( 'sanitize_callback' => 'sanitize_text_field' ) );
 		// Global on/off y página exclusiva (0 = todas las páginas).
 		register_setting( 'lac_settings_group', 'lac_enabled',          array( 'sanitize_callback' => 'absint' ) );
-		register_setting( 'lac_settings_group', 'lac_allowed_page_id',  array( 'sanitize_callback' => 'absint' ) );
+		// Lista de rutas (una por línea, ej. /producto, /, /carrito); vacío = sin restricción.
+		register_setting( 'lac_settings_group', 'lac_allowed_paths', array( 'sanitize_callback' => 'sanitize_textarea_field' ) );
 		// Excluir del chat productos con stock < Limatco_Chat_Context::LOW_STOCK_THRESHOLD (20).
 		register_setting( 'lac_settings_group', 'lac_exclude_low_stock', array( 'sanitize_callback' => 'absint' ) );
 	}
@@ -427,21 +428,14 @@ class Limatco_Chat_Admin {
 						</td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="lac_allowed_page_id">Restringir a una sola página</label></th>
+						<th scope="row"><label for="lac_allowed_paths">Restringir a rutas específicas</label></th>
 						<td>
-							<?php
-							// Dropdown de páginas publicadas.
-							wp_dropdown_pages( array(
-								'name'              => 'lac_allowed_page_id',
-								'id'                => 'lac_allowed_page_id',
-								'selected'          => get_option( 'lac_allowed_page_id', 0 ),
-								'show_option_all'   => '— Mostrar en todas las páginas —',
-								'option_none_value' => '0',
-							) );
-							?>
+							<textarea id="lac_allowed_paths" name="lac_allowed_paths" rows="4" class="large-text" placeholder="/producto&#10;/&#10;/carrito"><?php
+								echo esc_textarea( get_option( 'lac_allowed_paths', '' ) );
+							?></textarea>
 							<p class="description">
-								Elige una página para que el chatbot aparezca <strong>solo ahí</strong>.<br />
-								Ejemplo de uso: activarlo únicamente en <em>/tienda</em> o <em>/productos</em>.
+								Una ruta por línea. El chatbot solo aparece en esas rutas; vacío = se muestra en todo el sitio.<br />
+								Ejemplo: <code>/producto</code> (también calza con <code>/producto/nombre-del-producto/</code>), <code>/</code> (solo la portada), <code>/carrito</code>.
 							</p>
 						</td>
 					</tr>
