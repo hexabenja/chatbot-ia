@@ -20,7 +20,32 @@ class Limatco_Chat_Api {
 	// Se agrega al prompt SOLO cuando hay productos en el contexto (ver handle_message):
 	// así una consulta sin resultados (saludo, sucursales, etc.) no paga estos tokens.
 	// TEXTO DE EJEMPLO — reemplázalo con la redacción real que quieras usar.
-	const TECHNICAL_TERMS_CONTEXT = "PEI: escala de resistencia a la abrasión superficial (PEI 1 a PEI 5); a mayor número, más apto para tránsito alto/comercial.\nRectificado: cantos cortados a escuadra tras la cocción, permite juntas más finas entre piezas.\nAntideslizante / R9-R13: clasificación de resistencia al deslizamiento; a mayor código R, más antideslizante (usar en baños, terrazas, piscinas).\nm²: unidad de venta por caja; el precio unitario se calcula dividiendo el precio de la caja por su rendimiento en m².\nPorcelanato esmaltado: porcelanato con capa vítrea superficial (más brillo/color); distinto del porcelanato técnico (sin esmalte).";
+	const TECHNICAL_TERMS_CONTEXT = "PEI: escala de resistencia a la abrasión superficial (PEI 1 a PEI 5); a mayor número, más apto para tránsito alto/comercial.\n"
+. "## Porcelanato"
+. "**Formato >45x45 cm:** recomendar adhesivo de mayor desempeño (ej. D.A.), según ficha técnica."
+. "**Interior/Exterior:** verificar ubicación y resistencia requerida."
+. "**Alto tránsito:** verificar PEI; evitar superficies brillantes susceptibles al rayado."
+. "**Cocina/quincho:** considerar resistencia a manchas; precaución con porcelanato técnico pulido."
+. "**Carga pesada:** estacionamientos/bodegas → verificar resistencia mecánica y uso vehicular."
+. "**Muro:** verificar sustrato (tabiquería/hormigón) y capacidad de carga; formatos grandes pueden ejercer alta carga."
+. "**Sustrato flexible:** porcelanato/gres requieren base rígida; evitar instalación sobre estructuras con flexión."
+. "**Nivelación:** el adhesivo no reemplaza la nivelación; respetar espesor máximo recomendado (referencia: 5–6 mm)."
+. "## Cerámica de muro"
+. "**Exterior:** verificar absorción de agua; ciertas fachaletas requieren ≤6%."
+. "**Sustrato:** identificar hormigón, albañilería o tabiquería antes de definir preparación/adhesivo."
+. "**Uso:** cerámica exclusivamente de muro → NO recomendar para pisos."
+. "**Piso en muro:** verificar capacidad estructural por mayor peso."
+. "**Adhesivo:** preferir adhesivo en pasta cuando sea compatible."
+. "**Secado:** con adhesivo en pasta, respetar al menos 48 h antes de fraguar, salvo indicación distinta del fabricante."
+. "**Adhesivos:** no mezclar estándar, D.A. y pasta."
+. "## Cerámica de piso"
+. "**Estacionamientos:** verificar uso vehicular; considerar productos con granilla específica para estacionamientos/antideslizante."
+. "**PEI:** seleccionar según tránsito y recinto. Referencia: PEI 3 para uso residencial moderado; PEI 4 para mayor tránsito/comercio liviano."
+. "**Recinto:** identificar uso (dormitorio, living, cocina, acceso, comercio, etc.) antes de recomendar PEI."
+. "**Terraza:** verificar si es techada o descubierta; exterior expuesto a humedad → preferir superficie texturada/granillada antideslizante."
+. "**Tono/Calibre:** procurar comprar toda la partida junta y verificar mismo tono/calibre antes de instalar."
+. "**Destonalizado:** confirmar si el cliente busca color uniforme o variación entre caras; mostrar/considerar imágenes instaladas cuando estén disponibles.";
+	
 
 	// Contexto de sucursales (dirección, teléfonos, horarios). Se inyecta en el prompt
 	// is_branches_query()); IA responde de forma natural y específica a lo que se le pregunte
@@ -416,7 +441,7 @@ class Limatco_Chat_Api {
 		$categories = Limatco_Chat_Context::get_available_categories();
 		$category_list = ! empty( $categories ) ? implode( ', ', array_values( $categories ) ) : '(sin categorías registradas)';
 
-		$system = "Clasificador de mensajes sobre productos de construcción (Limatco). Analiza el MENSAJE MÁS RECIENTE "
+		$system = "Clasificador de mensajes sobre productos de construcción (Limatco). Analiza el MENSAJE MÁS RECIENTE"
 			. "en el contexto de los turnos previos (puede ser respuesta a una aclaración, no consulta aislada). "
 			. "Responde SOLO este JSON, sin texto extra:\n"
 			. '{"category": "<una de: ' . $category_list . ' o vacío>", "keywords": "<2-5 palabras>", "needs_search": <true|false>, '
@@ -425,6 +450,7 @@ class Limatco_Chat_Api {
 			. '"atributos": {"formato": "<ej. 60x60, o vacío>", "terminacion": "<ej. antideslizante/R10/R11, o vacío>", "estetica-o-diseno": "<ej. madera/madera tipo tabla/cemento/marmol/decorado/monocolor, o vacío>", "acabado": "<ej. mate/satinado/texturado, o vacío>", "cantos-o-bordes": "<ej. rectificado/encastre, o vacío>", "caras-o-destonalizado": "<vacío salvo que el usuario lo pida explícito>"}}' . "\n\n"
 			. "needs_search=false SOLO si el mensaje no trata de productos/servicios Limatco (saludos, agradecimientos, despedidas, small talk, preguntas del bot). Cualquier búsqueda/pregunta/respuesta de seguimiento sobre producto, aunque sea vaga, => true. Si false: category, keywords, colores y atributos van vacíos.\n\n"
 			. "Reglas de colores/atributos:\n"
+			. "- Identifica por separado: categoría, marca, modelo/nombre específico, características o uso, y otros términos útiles.\n”
 			. "- 'colores' son SOLO los colores predominantes reales del producto (ej. 'cerámica blanca' -> [\"blanco\"]); no confundir con ambiente/estilo.\n"
 			. "- Si el usuario pide 2+ colores combinados a la vez (ej. 'blanco y gris'), ponlos en la lista SOLO si el usuario quiere esa combinación específica en el mismo producto. 'Blanca con detalles grises' o 'principalmente blanca con vetas grises' = [\"blanco\"] (el blanco es el predominante; el gris es un detalle secundario, NO un segundo color requerido).\n"
 			. "- 'single_color_only' es true SOLO si el usuario dice explícitamente que sea de un solo color / puro / sin combinar / liso; en cualquier otro caso, false.\n"
@@ -438,6 +464,7 @@ class Limatco_Chat_Api {
 			. "- Una medida explícita (60x60, 60x120, 30x30, etc.) es un filtro obligatorio y no debe convertirse en una keyword.\n"
 			. "- No inventes ningún valor de atributo que el usuario no haya mencionado o insinuado con claridad; deja vacío si no aplica.\n\n"
 			. "Reglas de keywords:\n"
+			. "- Si el usuario menciona una marca, la marca es una keyword de alta prioridad. Ejemplos: adhesivos Crest → categoría=adhesivos, keywords=Crest .\n"
 			. "- Deben aparecer LITERAL en nombre/descripción del producto (se buscan por separado); solo términos que aporten.\n"
 			. "- Ambiente (dormitorio/living/sala/pieza/comedor/cocina/baño) -> 'interior'. Exterior (terraza/patio/jardín/piscina) -> 'exterior'. Tránsito alto/comercial/local/negocio -> 'alto tránsito'. Nivel PEI explícito -> respétalo tal cual (ej. 'PEI 4').\n"
 			. "- No inventes ni agregues color/tono/estilo como keyword (el color ya va en 'colores', la medida en formato y el diseño en estetica-o-diseno) salvo que el usuario haya dado un término muy específico y ya haya funcionado antes en la conversación.\n"
