@@ -730,6 +730,8 @@ class Limatco_Chat_Api {
 			'telefono',
 			'numero telefonico',
 			'numero de telefono',
+			'asesor humano',
+			'comunicarme con un vendedor',
 		);
 		foreach ( $phone_triggers as $trigger ) {
 			if ( false !== strpos( $normalized, $trigger ) ) {
