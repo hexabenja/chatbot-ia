@@ -450,7 +450,7 @@ class Limatco_Chat_Api {
 			. '"atributos": {"formato": "<ej. 60x60, o vacío>", "terminacion": "<ej. antideslizante/R10/R11, o vacío>", "estetica-o-diseno": "<ej. madera/madera tipo tabla/cemento/marmol/decorado/monocolor, o vacío>", "acabado": "<ej. mate/satinado/texturado, o vacío>", "cantos-o-bordes": "<ej. rectificado/encastre, o vacío>", "caras-o-destonalizado": "<vacío salvo que el usuario lo pida explícito>"}}' . "\n\n"
 			. "needs_search=false SOLO si el mensaje no trata de productos/servicios Limatco (saludos, agradecimientos, despedidas, small talk, preguntas del bot). Cualquier búsqueda/pregunta/respuesta de seguimiento sobre producto, aunque sea vaga, => true. Si false: category, keywords, colores y atributos van vacíos.\n\n"
 			. "Reglas de colores/atributos:\n"
-			. "- Identifica por separado: categoría, marca, modelo/nombre específico, características o uso, y otros términos útiles.\n”
+			. "- Identifica por separado: categoría, marca, modelo/nombre específico, características o uso, y otros términos útiles.\n"
 			. "- 'colores' son SOLO los colores predominantes reales del producto (ej. 'cerámica blanca' -> [\"blanco\"]); no confundir con ambiente/estilo.\n"
 			. "- Si el usuario pide 2+ colores combinados a la vez (ej. 'blanco y gris'), ponlos en la lista SOLO si el usuario quiere esa combinación específica en el mismo producto. 'Blanca con detalles grises' o 'principalmente blanca con vetas grises' = [\"blanco\"] (el blanco es el predominante; el gris es un detalle secundario, NO un segundo color requerido).\n"
 			. "- 'single_color_only' es true SOLO si el usuario dice explícitamente que sea de un solo color / puro / sin combinar / liso; en cualquier otro caso, false.\n"
