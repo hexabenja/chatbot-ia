@@ -22,6 +22,7 @@
  * 0.6.9: la respuesta de sucursales ya no es un texto fijo; ahora es contexto (dirección, teléfonos, horarios) que se inyecta solo en preguntas de sucursales, y la IA responde específicamente a lo preguntado
  * 0.7.0: detección de "oferta/rebaja/descuento/remate" (solo productos en oferta) y "económico/barato" (orden de menor a mayor precio, unidad base m² o precio regular); toggle admin "no buscar productos con stock menor a 20"
  * 0.7.1: "restringir a una sola página" ahora es una lista de rutas/URLs editable (ej. /producto, / , /carrito) en vez de un dropdown de una sola página; /producto calza también con /producto/nombre-del-producto/
+ * 0.7.2: la tarjeta del chat sigue mostrando el precio m² como referencia, pero el carro ya no se sobrescribe con ese precio: se desactivó el hook woocommerce_before_calculate_totals que igualaba el precio del carro al de m², así que al agregar al carro se ve el precio normal (caja)
 */
 
 
@@ -31,7 +32,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'LAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LAC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'LAC_VERSION', '0.5.1' );
+define( 'LAC_VERSION', '0.5.2' );
 
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-admin.php';
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-api.php';
@@ -181,6 +182,9 @@ add_action( 'wp_footer', 'lac_render_widget_markup' );
  * si unidad_stock = "M2", usa get_m2_price_info()
  * (precio unidad base, o precio de oferta = precio_oferta_caja / rendimiento_m2_por_caja
  * Si es "C/U" no se toca nada — queda el $product->get_price()
+ *
+ * DESACTIVADO: lac_apply_before_calculate_totals haciendo que aparezca precio de venta de la caja, 
+ * por si se necesita reactivar está la función de precio caja/m2. AUNQUE NO SE DEBA.
  */
 function lac_apply_m2_price_to_cart( $cart ) {
 	if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
@@ -194,4 +198,3 @@ function lac_apply_m2_price_to_cart( $cart ) {
 		}
 	}
 }
-add_action( 'woocommerce_before_calculate_totals', 'lac_apply_m2_price_to_cart' );
