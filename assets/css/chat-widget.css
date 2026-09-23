@@ -40,7 +40,7 @@
     right: 0;
     width: 45vw;
     max-width: 150vw;
-    height: 63vh;
+    height: 55vh;
     max-height: 100vh;
     background: #fff;
     border-radius: 14px;
@@ -373,6 +373,7 @@
 	.lac-chat-window {
 		width: 92vw;
 		right: -4px;
+        height: 50vh;
 	}
 }
 
