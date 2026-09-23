@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	<div id="lac-chat-window" class="lac-chat-window" hidden>
 		<div class="lac-chat-header">
 			<span>Asistente Virtual Limatco</span>
-			<button id="lac-close-btn" class="lac-close-btn" type="button" aria-label="Cerrar chat">&times;</button>
+			<button id="lac-close-btn" class="lac-close-btn" type="button" aria-label="Cerrar chat">Cerrar &times;</button>
 		</div>
 
 		<div id="lac-messages" class="lac-messages"></div>
