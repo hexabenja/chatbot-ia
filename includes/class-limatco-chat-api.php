@@ -117,12 +117,14 @@ class Limatco_Chat_Api {
 
 		if ( ! wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
 			error_log( 'Revisar si hay algún plugin de Caché, Cloudfare o modo administrador de WP activo' );
+			Limatco_Chat_Admin::log_error( 'nonce', 'lac_nonce_invalid', 'Nonce inválido o expirado en /message (revisar caché/Cloudflare/modo admin)', array(), 'warning' );
 			return new WP_REST_Response( array( 'error' => 'Nonce inválido o expirado, recargue la página' ), 403 );
 		}
 
 		$rate_limit_error = $this->check_rate_limit();
 		if ( is_wp_error( $rate_limit_error ) ) {
 			error_log( 'Error 429' );
+			Limatco_Chat_Admin::log_error( 'rate_limit', $rate_limit_error->get_error_code(), $rate_limit_error->get_error_message(), array(), 'warning' );
 			return new WP_REST_Response( array( 'error' => $rate_limit_error->get_error_message() ), 429 );
 		}
 
@@ -161,6 +163,7 @@ class Limatco_Chat_Api {
 		$api_key = get_option( 'lac_api_key', '' );
 		if ( empty( $api_key ) ) {
 			error_log( 'No hay API configurada en el sistema' );
+			Limatco_Chat_Admin::log_error( 'config', 'lac_no_api_key', 'No hay API key configurada en los ajustes del plugin' );
 			return new WP_REST_Response( array( 'error' => 'Espere un momento y recargue la página' ), 500 );
 		}
 
@@ -174,6 +177,13 @@ class Limatco_Chat_Api {
 
 		if ( is_wp_error( $classification ) ) {
 			// Si falla la clasificación, seguimos igual pero sin filtro de categoría ni atributos.
+			Limatco_Chat_Admin::log_error(
+				'classifier',
+				$classification->get_error_code(),
+				$classification->get_error_message() . ' (se continuó sin filtro de categoría)',
+				array( 'query' => $user_message, 'model' => $model ),
+				'warning'
+			);
 			$classification = array(
 				'category'          => '',
 				'keywords'          => $user_message,
@@ -299,6 +309,19 @@ class Limatco_Chat_Api {
         )
     );
 
+    Limatco_Chat_Admin::log_error(
+        'gemini',
+        $error_code,
+        $error_message,
+        array(
+            'http_code' => $http_code,
+            'api_code'  => $api_code,
+            'status'    => $status,
+            'model'     => $model,
+            'query'     => $user_message,
+        )
+    );
+
     return new WP_REST_Response(
         array(
             'error' => 'Error al intentar crear una respuesta. Vuelva a intentar en unos momentos.'
@@ -402,11 +425,13 @@ class Limatco_Chat_Api {
 
 		if ( ! wp_verify_nonce( $request->get_header( 'X-WP-Nonce' ), 'wp_rest' ) ) {
 			error_log( 'Revisar si hay algún plugin de Caché, Cloudfare o modo administrador de WP activo' );
+			Limatco_Chat_Admin::log_error( 'nonce', 'lac_nonce_invalid', 'Nonce inválido o expirado en agregar al carrito', array(), 'warning' );
 			return new WP_REST_Response( array( 'error' => 'Nonce inválido o expirado, recargue la página' ), 403 );
 		}
 
 		if ( ! function_exists( 'wc_load_cart' ) || ! function_exists( 'wc_get_product' ) ) {
 			error_log( 'WooCommerce no está activo, no se puede agregar al carrito' );
+			Limatco_Chat_Admin::log_error( 'woocommerce', 'lac_wc_inactive', 'WooCommerce no está activo, no se puede agregar al carrito' );
 			return new WP_REST_Response( array( 'error' => 'WooCommerce no está activo en este sitio.' ), 500 );
 		}
 
@@ -424,6 +449,7 @@ class Limatco_Chat_Api {
 
 		if ( ! $added ) {
 			error_log( "No se pudo agregar el producto {$product_id} al carrito desde el chat" );
+			Limatco_Chat_Admin::log_error( 'add_to_cart', 'lac_add_to_cart_failed', 'WC()->cart->add_to_cart() devolvió false', array( 'product_id' => $product_id ) );
 			return new WP_REST_Response( array( 'error' => 'No se pudo agregar el producto al carrito.' ), 500 );
 		}
 
@@ -699,7 +725,15 @@ class Limatco_Chat_Api {
 
 		if ( $status < 200 || $status >= 300 ) {
 			$message = isset( $data['error']['message'] ) ? $data['error']['message'] : 'Error desconocido al llamar a la API.';
-			return new WP_Error( 'lac_api_error', $message );
+			return new WP_Error(
+				'lac_api_error',
+				$message,
+				array(
+					'http_code' => $status,
+					'api_code'  => isset( $data['error']['code'] ) ? $data['error']['code'] : 'N/A',
+					'status'    => isset( $data['error']['status'] ) ? $data['error']['status'] : 'lac_api_error',
+				)
+			);
 		}
 
 		$text = isset( $data['choices'][0]['message']['content'] ) ? $data['choices'][0]['message']['content'] : '';

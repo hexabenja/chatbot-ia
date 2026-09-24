@@ -250,6 +250,7 @@ private static function get_normalized_format_term_ids( $value ) {
 	 */
 	public static function get_context_for_query( $category_slug, $keywords, $colores = array(), $single_color_only = false, $atributos = array(), $product_type = '', $only_on_sale = false, $sort_price_asc = false ) {
 		if ( ! function_exists( 'wc_get_products' ) ) {
+			Limatco_Chat_Admin::log_error( 'woocommerce', 'lac_wc_inactive', 'wc_get_products() no existe: WooCommerce no está activo' );
 			return array(
 				'text'     => 'WooCommerce no está activo en este sitio.',
 				'products' => array(),

@@ -23,6 +23,7 @@
  * 0.7.0: detección de "oferta/rebaja/descuento/remate" (solo productos en oferta) y "económico/barato" (orden de menor a mayor precio, unidad base m² o precio regular); toggle admin "no buscar productos con stock menor a 20"
  * 0.7.1: "restringir a una sola página" ahora es una lista de rutas/URLs editable (ej. /producto, / , /carrito) en vez de un dropdown de una sola página; /producto calza también con /producto/nombre-del-producto/
  * 0.7.2: la tarjeta del chat sigue mostrando el precio m² como referencia, pero el carro ya no se sobrescribe con ese precio: se desactivó el hook woocommerce_before_calculate_totals que igualaba el precio del carro al de m², así que al agregar al carro se ve el precio normal (caja)
+ * 0.7.3: nuevo panel "Registro de errores" en los ajustes del plugin (errores de API/Gemini, clasificador, nonce, rate limit, WooCommerce y agregar al carrito), rotativo de 100 entradas, con agrupación de repetidos y botón para vaciarlo
 */
 
 
@@ -32,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'LAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LAC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'LAC_VERSION', '0.5.2' );
+define( 'LAC_VERSION', '0.5.3' );
 
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-admin.php';
 require_once LAC_PLUGIN_DIR . 'includes/class-limatco-chat-api.php';

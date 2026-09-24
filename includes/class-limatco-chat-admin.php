@@ -22,6 +22,8 @@ class Limatco_Chat_Admin {
 	const OPTION_SUMS   = 'lac_file_checksums';      // hashes SHA-256 de referencia
 	const OPTION_LOG    = 'lac_access_log';           // log de accesos al panel
 	const OPTION_WP_LOG = 'lac_wp_user_log';          // último usuario WP logueado antes de cada cambio
+	const OPTION_ERRORS = 'lac_error_log';            // registro de errores del chatbot (API, nonce, WooCommerce, etc.)
+	const ERROR_LOG_MAX = 100;                        // máximo de entradas guardadas (rotativo)
 	const SESSION_TTL   = 3600;                       // 1 hora
 
 	public function __construct() {
@@ -120,6 +122,64 @@ class Limatco_Chat_Admin {
 			}
 		}
 		return 'unknown';
+	}
+
+	// ── Registro de errores del chatbot ──────────────────────────────────────
+
+	/**
+	 * Guarda un error en wp_options (rotativo, ERROR_LOG_MAX entradas) para mostrarlo en el panel.
+	 * Estático: se llama desde Limatco_Chat_Api / Limatco_Chat_Context sin instanciar el admin.
+	 * Si el error consecutivo es idéntico (mismo origen/código/mensaje) solo suma al contador.
+	 *
+	 * @param string $source  Origen: gemini, classifier, nonce, rate_limit, config, woocommerce, add_to_cart.
+	 * @param string $code    Código corto (ej. lac_api_error, HTTP status).
+	 * @param string $message Descripción del error.
+	 * @param array  $context Datos escalares de apoyo (query, modelo, http_code...). Nunca la API key.
+	 * @param string $level   'error' | 'warning'.
+	 */
+	public static function log_error( $source, $code, $message, $context = array(), $level = 'error' ) {
+		$message = wp_strip_all_tags( (string) $message );
+		$api_key = (string) get_option( 'lac_api_key', '' );
+		if ( '' !== $api_key ) {
+			$message = str_replace( $api_key, '***', $message );
+		}
+
+		$ctx = array();
+		foreach ( (array) $context as $k => $v ) {
+			if ( is_scalar( $v ) || null === $v ) {
+				$ctx[ sanitize_key( $k ) ] = mb_substr( wp_strip_all_tags( (string) $v ), 0, 200 );
+			}
+		}
+
+		$entry = array(
+			'level'     => ( 'warning' === $level ) ? 'warning' : 'error',
+			'source'    => sanitize_key( $source ),
+			'code'      => sanitize_text_field( (string) $code ),
+			'message'   => mb_substr( $message, 0, 500 ),
+			'context'   => $ctx,
+			'count'     => 1,
+			'time'      => current_time( 'mysql' ),
+			'time_unix' => time(),
+			'ip'        => isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown',
+		);
+
+		$log = get_option( self::OPTION_ERRORS, array() );
+		if ( ! is_array( $log ) ) {
+			$log = array();
+		}
+
+		if ( ! empty( $log[0] )
+			&& $log[0]['source'] === $entry['source']
+			&& $log[0]['code'] === $entry['code']
+			&& $log[0]['message'] === $entry['message'] ) {
+			$entry['count'] = (int) $log[0]['count'] + 1;
+			$log[0]         = $entry;
+		} else {
+			array_unshift( $log, $entry );
+			$log = array_slice( $log, 0, self::ERROR_LOG_MAX );
+		}
+
+		update_option( self::OPTION_ERRORS, $log, false );
 	}
 
 	// ── Integridad de archivos ────────────────────────────────────────────────
@@ -279,6 +339,12 @@ class Limatco_Chat_Admin {
 			$password_notice = 'Línea base de integridad guardada correctamente.';
 		}
 
+		// Vaciar registro de errores.
+		if ( isset( $_POST['lac_clear_errors'] ) && check_admin_referer( 'lac_clear_errors_action' ) && $this->is_plugin_authenticated() ) {
+			delete_option( self::OPTION_ERRORS );
+			$password_notice = 'Registro de errores vaciado.';
+		}
+
 		// Set / cambio de contraseña.
 		if ( isset( $_POST['lac_set_password'] ) && check_admin_referer( 'lac_set_password_action' ) ) {
 			$new_pass    = $_POST['lac_new_password']     ?? '';
@@ -325,6 +391,7 @@ class Limatco_Chat_Admin {
 		// ── Panel principal autenticado ───────────────────────────────────────
 		$integrity     = $this->check_integrity();
 		$access_log    = get_option( self::OPTION_LOG, array() );
+		$error_log     = get_option( self::OPTION_ERRORS, array() );
 		$default_prompt = "Eres el asistente virtual de Limatco (limatco.cl), empresa chilena de materiales de construcción.\n"
 			. "Responde ÚNICAMENTE con base en la información de catálogo/contexto proporcionada más abajo.\n"
 			. "Si la pregunta no se puede responder con esa información, dilo explícitamente y ofrece derivar a un asesor humano. No inventes precios, stock ni especificaciones.";
@@ -567,6 +634,56 @@ class Limatco_Chat_Admin {
 					<?php endforeach; ?>
 					</tbody>
 				</table>
+			<?php endif; ?>
+
+			<!-- Registro de errores del chatbot -->
+			<hr />
+			<h2>Registro de errores</h2>
+			<?php if ( empty( $error_log ) ) : ?>
+				<p class="description">Sin errores registrados.</p>
+			<?php else : ?>
+				<p class="description">Últimos <?php echo esc_html( count( $error_log ) ); ?> registros (máx. <?php echo esc_html( self::ERROR_LOG_MAX ); ?>). Los errores consecutivos idénticos se agrupan en una fila (columna Veces).</p>
+				<table class="widefat striped" style="margin-top:8px;">
+					<thead>
+						<tr>
+							<th>Fecha</th>
+							<th>Nivel</th>
+							<th>Origen</th>
+							<th>Código</th>
+							<th>Mensaje</th>
+							<th>Detalle</th>
+							<th>Veces</th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ( $error_log as $err ) : ?>
+						<tr>
+							<td><?php echo esc_html( $err['time'] ); ?></td>
+							<td>
+								<?php
+								$lvl_color = ( 'warning' === $err['level'] ) ? '#dba617' : '#d63638';
+								echo '<strong style="color:' . esc_attr( $lvl_color ) . ';">' . esc_html( strtoupper( $err['level'] ) ) . '</strong>';
+								?>
+							</td>
+							<td><code><?php echo esc_html( $err['source'] ); ?></code></td>
+							<td><code><?php echo esc_html( $err['code'] ); ?></code></td>
+							<td><?php echo esc_html( $err['message'] ); ?></td>
+							<td style="font-size:12px;color:#555;">
+								<?php foreach ( (array) $err['context'] as $ck => $cv ) : ?>
+									<div><strong><?php echo esc_html( $ck ); ?>:</strong> <?php echo esc_html( $cv ); ?></div>
+								<?php endforeach; ?>
+								<div><strong>ip:</strong> <?php echo esc_html( $err['ip'] ); ?></div>
+							</td>
+							<td><?php echo esc_html( (int) $err['count'] ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+				<form method="post" style="margin-top:12px;">
+					<?php wp_nonce_field( 'lac_clear_errors_action' ); ?>
+					<input type="hidden" name="lac_clear_errors" value="1" />
+					<?php submit_button( 'Vaciar registro de errores', 'secondary', 'submit', false, array( 'onclick' => "return confirm('¿Vaciar el registro de errores?');" ) ); ?>
+				</form>
 			<?php endif; ?>
 
 		</div>

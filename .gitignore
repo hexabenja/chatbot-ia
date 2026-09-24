@@ -1,3 +1,6 @@
 chatbotv1_2.zip
 includes/patch2.patch
 class-limatco-chat-api.php.patch
+limatco-ai-chat.php.patch
+error-log-panel.patch
+.gitignore
