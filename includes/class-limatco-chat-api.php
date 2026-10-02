@@ -173,7 +173,28 @@ class Limatco_Chat_Api {
 		// Se le pasa el historial para que pueda interpretar respuestas de
 		// seguimiento (ej. el usuario responde "en dormitorio" a una pregunta
 		// aclaratoria previa) en vez de clasificar el mensaje aislado.
-		$classification = $this->classify_query( $api_key, $model, $user_message, $history );
+		$sku_hit     = $this->extract_sku_query( $user_message );
+		$sku_context = null;
+		if ( null !== $sku_hit ) {
+			$sku_context = Limatco_Chat_Context::get_context_for_sku( $sku_hit['sku'] );
+			if ( empty( $sku_context['products'] ) && ! $sku_hit['explicit'] ) {
+				$sku_context = null;
+			}
+		}
+
+		if ( null !== $sku_context ) {
+			$classification = array(
+				'category'          => '',
+				'keywords'          => $sku_hit['sku'],
+				'needs_search'      => false,
+				'colores'           => array(),
+				'single_color_only' => false,
+				'atributos'         => array(),
+				'sku_lookup'        => true,
+			);
+		} else {
+			$classification = $this->classify_query( $api_key, $model, $user_message, $history );
+		}
 
 		if ( is_wp_error( $classification ) ) {
 			// Si falla la clasificación, seguimos igual pero sin filtro de categoría ni atributos.
@@ -202,6 +223,10 @@ class Limatco_Chat_Api {
 		// filtro/orden sobre la búsqueda, no dependen de la clasificación por IA.
 		$wants_on_sale   = $this->is_sale_query( $user_message );
 		$wants_cheapest  = $this->is_cheap_query( $user_message );
+		if ( null !== $sku_context ) {
+			$wants_on_sale  = false;
+			$wants_cheapest = false;
+		}
 
 		// 2.- Buscar en WooCommerce con esa categoría/keywords/atributos SOLO si el mensaje es
 		// realmente sobre productos. Si no (ej. "hola", "gracias", o una pregunta de
@@ -209,7 +234,9 @@ class Limatco_Chat_Api {
 		// cascada terminaba trayendo productos al azar del catálogo para un simple saludo.
 		// "oferta"/"barato" son siempre intención de búsqueda de producto, aunque el
 		// clasificador (needs_search) se equivoque con un mensaje corto tipo "ofertas".
-		if ( ( ! empty( $classification['needs_search'] ) || $wants_on_sale || $wants_cheapest ) && ! $is_branches_query ) {
+		if ( null !== $sku_context ) {
+			$context_data = $sku_context;
+		} elseif ( ( ! empty( $classification['needs_search'] ) || $wants_on_sale || $wants_cheapest ) && ! $is_branches_query ) {
 			// get_context_for_query() devuelve el texto para el prompt de la IA
 			// y, aparte, la data (imagen/precio/stock/oferta) para las tarjetas del widget.
 			$context_data = Limatco_Chat_Context::get_context_for_query(
@@ -238,6 +265,10 @@ class Limatco_Chat_Api {
 		// preguntó (ej. el horario de una sola sucursal) usando este contexto, no un texto fijo.
 		if ( $is_branches_query ) {
 			$full_system .= "\n\n--- Información de sucursales (dirección, teléfonos, horario). Responde solo con lo que se pregunte, no vuelques todo el listado salvo que el usuario pida ver todas las sucursales:\n" . self::BRANCHES_CONTEXT;
+		}
+
+		if ( null !== $sku_context ) {
+			$full_system .= "\n\n--- El usuario buscó por código SKU/código Limatco. El contexto de arriba es la coincidencia exacta de ese código (o indica que no existe).";
 		}
 
 		if ( $wants_on_sale ) {
@@ -806,6 +837,33 @@ class Limatco_Chat_Api {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Extrae un posible SKU del mensaje. 'explicit' = el usuario lo precedió con sku/código/cod/código limatco;
+	 * si no, solo se acepta un mensaje que sea únicamente un token con dígitos. El token debe tener al menos un dígito.
+	 *
+	 * @return array{sku:string,explicit:bool}|null
+	 */
+	private function extract_sku_query( $user_message ) {
+		$normalized = remove_accents( trim( $user_message ) );
+
+		$pattern = '/\b(?:sku|codigo|cod)\b\.?(?:\s+limatco)?\s*(?:(?:n[°º]|nro\.?|numero)\s*)?[:#]?\s*([a-z0-9][a-z0-9._\-\/]{2,39})/i';
+		if ( preg_match_all( $pattern, $normalized, $matches ) ) {
+			foreach ( $matches[1] as $candidate ) {
+				$candidate = rtrim( $candidate, '.-_/' );
+				if ( preg_match( '/\d/', $candidate ) && ! preg_match( '/^r\d{1,2}$/i', $candidate ) ) {
+					return array( 'sku' => $candidate, 'explicit' => true );
+				}
+			}
+		}
+
+		$bare = rtrim( $normalized, '?!. ' );
+		if ( preg_match( '/^[a-z0-9][a-z0-9._\-\/]{3,39}$/i', $bare ) && preg_match( '/\d/', $bare ) ) {
+			return array( 'sku' => $bare, 'explicit' => false );
+		}
+
+		return null;
 	}
 
 	/** Detecta intención de "solo productos en oferta" (oferta/rebaja/descuento/remate). Mismo patrón normalizado que is_branches_query(). */

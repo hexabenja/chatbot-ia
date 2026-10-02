@@ -161,6 +161,13 @@
 			name.textContent = product.name || '';
 			info.appendChild( name );
 
+			if ( product.sku ) {
+				var sku = document.createElement( 'div' );
+				sku.className = 'lac-product-sku';
+				sku.textContent = 'SKU: ' + product.sku;
+				info.appendChild( sku );
+			}
+
 			// Solo se muestra el badge cuando NO hay stock; si está disponible no se
 			// pinta nada (menos ruido visual en la tarjeta).
 			if ( ! product.in_stock ) {

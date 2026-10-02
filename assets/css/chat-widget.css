@@ -241,6 +241,13 @@
 	-webkit-box-orient: vertical;
 }
 
+.lac-product-sku {
+	font-size: 10px;
+	color: #8a8a8a;
+	line-height: 1.2;
+	margin-top: -2px;
+}
+
 .lac-product-price {
 	font-size: 17px;
 	font-weight: 700;

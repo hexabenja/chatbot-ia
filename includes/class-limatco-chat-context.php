@@ -311,6 +311,65 @@ private static function get_normalized_format_term_ids( $value ) {
 	}
 
 	/**
+	 * Busca por SKU: coincidencia exacta (producto o variación -> padre), y si no, coincidencia parcial.
+	 *
+	 * @return array{text:string,products:array}
+	 */
+	public static function get_context_for_sku( $sku ) {
+		$sku = sanitize_text_field( $sku );
+
+		if ( '' === $sku || ! function_exists( 'wc_get_product_id_by_sku' ) ) {
+			return array(
+				'text'     => 'No se pudo buscar por SKU.',
+				'products' => array(),
+			);
+		}
+
+		$products = array();
+		$id       = wc_get_product_id_by_sku( $sku );
+		if ( $id ) {
+			$product = wc_get_product( $id );
+			if ( $product && $product->is_type( 'variation' ) ) {
+				$product = wc_get_product( $product->get_parent_id() );
+			}
+			if ( $product && 'publish' === $product->get_status() ) {
+				$products[] = $product;
+			}
+		}
+
+		if ( empty( $products ) ) {
+			$products = wc_get_products(
+				array(
+					'status'  => 'publish',
+					'sku'     => $sku,
+					'limit'   => self::MAX_PRODUCTS,
+					'orderby' => 'title',
+					'order'   => 'ASC',
+				)
+			);
+		}
+
+		if ( empty( $products ) ) {
+			return array(
+				'text'     => 'No existe un producto con el SKU/código "' . $sku . '" en el catálogo. Indícalo al usuario y sugiere revisar el código o describir el producto.',
+				'products' => array(),
+			);
+		}
+
+		$lines          = array();
+		$product_cards = array();
+		foreach ( $products as $product ) {
+			$lines[]         = self::format_product_line( $product );
+			$product_cards[] = self::build_product_card_data( $product );
+		}
+
+		return array(
+			'text'     => implode( "\n", $lines ),
+			'products' => $product_cards,
+		);
+	}
+
+	/**
 	 * Cascada categoría+keywords -> solo keywords -> solo categoría, aplicando el mismo
 	 * $tax_query (opcional) en los 3 pasos. Es la misma cascada de siempre, solo separada
 	 * en su propio método para poder correrla dos veces (con y sin atributos) desde
@@ -888,6 +947,7 @@ private static function get_normalized_format_term_ids( $value ) {
 			'id'                => $product->get_id(),
 			'name'              => $product->get_name(),
 			'brand'             => self::get_product_brand( $product ),
+			'sku'               => $product->get_sku(),
 			'image'             => $image_url,
 			'url'               => get_permalink( $product->get_id() ),
 			// wc_price() devuelve el símbolo de moneda como entidad HTML (&#36;);
